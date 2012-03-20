@@ -1,0 +1,45 @@
+name:           nanoAgda
+version:        1.0.0
+category:       Dependent Types
+synopsis:       A toy dependently-typed language
+description:
+
+        nanoAgda implements a type-checker for a toy dependently-typed
+        language.
+
+        The goal of the project is to provide a minimal type-checker
+        with dependent types that can be easily fiddled with.
+   
+license:        OtherLicense
+-- Creative Commons Attribution Share-Alike
+license-file:   LICENSE
+author:         Jean-Philippe Bernardy
+maintainer:     jeanphilippe.bernardy@gmail.com
+Cabal-Version:  >= 1.8
+tested-with:    GHC==7.2.2
+build-type:     Simple
+
+executable nanoAgda
+  extensions: CPP, FlexibleInstances, OverloadedStrings
+  main-is: Main.hs
+
+  other-modules:
+     AbsSynToTerm
+     Basics
+     Display
+     Main
+     Normal
+     Options
+     RawSyntax
+     Terms
+     TypeCheckerNF
+
+  build-depends: base==4.*
+  build-depends: cmdargs==0.8.*
+  build-depends: containers==0.4.*
+  build-depends: pretty==1.1.*
+  build-depends: parsec==2.1.*
+  build-depends: BNFC-meta==0.3.*
+  build-depends: transformers == 0.2.*
+  build-depends: mtl == 2.0.*
+  

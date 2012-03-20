@@ -1,0 +1,25 @@
+A tiny type-checker, loosely based on 
+
+ "On the Algebraic Foundation of Proof Assistants for Intuitionistic Type Theory", Abel, Coquand, Dybjeri.
+
+some ideas from
+
+"A Tutorial Implementation of a Dependently Typed Lambda Calculus", Löh, McBride, Swierstra
+
+are also used for this implementation.
+
+Additionally, this implementation performs evaluation to normal form
+and type checking/inference at the same time. Some extra features,
+that add a lot of convenience, but just little complication are also
+present, such as dependent sums.
+
+The interesting bits are in 
+
+Normal.hs (mainly the subst function which performs hereditary substitutions)
+TypeCheckerNF.hs (type checking and driver of normalisation)
+
+
+
+
+
+
