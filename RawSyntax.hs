@@ -24,7 +24,6 @@ coercions Exp 6 ;
 
 Decl. Decl ::= AIdent "=" Exp1 ;
 terminator AIdent "" ;
-terminator Decl ";" ;
 
 token Arrow  ('-' '>') ;
 
