@@ -124,7 +124,7 @@ iSort g e = do
   (val,v) <- iType g e
   case v of 
     Star i -> return (val,i)
-    (Neu (Hole h)) -> do 
+    Hole h -> do 
          report $ text h <+> "must be a type"
          return $ (hole h, Sort 1)
     _ -> throwError (e,displayT g e <+> "is not a type")
@@ -136,8 +136,8 @@ unify g e q q' =
                 constraint = report $ vcat ["constraint: " <> display g q',
                                             "equal to  : " <> display g q]
             case (q,q') of
-              ((Neu (Hole _)), t) -> constraint
-              (t, Neu (Hole _)) -> constraint
+              ((Hole _), t) -> constraint
+              (t, Hole _) -> constraint
               _ -> unless (q == q') 
                        (throwError (e,hang "type mismatch: " 2 $ vcat 
                                              ["inferred:" <+> display g q',
