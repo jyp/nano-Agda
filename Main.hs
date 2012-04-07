@@ -4,20 +4,12 @@ module Main where
 import System.IO ( stdin, hGetContents )
 import System.Environment ( getArgs )
 import Options 
-import qualified Normal
-
-{-
-import LexSyntax
-import ParSyntax
-import SkelSyntax
-import PrintSyntax
--}
+import Normal
 
 import RawSyntax
 import AbsSynToTerm
 import TypeCheckerNF
 import Basics
-import Terms
 import Display
 import Text.PrettyPrint.HughesPJ (render)
 import qualified Data.Sequence as S
@@ -65,7 +57,7 @@ process fname modul = do
        putStrV 0 $ "nf =" <+> pretty a
        putStrV 0 $ "ty =" <+> pretty b
        return True
-    Left (e,err) -> do let Irr (line,col) = termPosition e 
+    Left (e,err) -> do let (line,col) = termPosition e 
                        putStrV 0 (text fname <> ":" <> pretty line <> ":" <> pretty (col - 1) <> ":" <+> err)
                        return False
       

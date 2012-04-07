@@ -31,7 +31,6 @@ executable nanoAgda
      Normal
      Options
      RawSyntax
-     Terms
      TypeCheckerNF
 
   build-depends: base==4.*

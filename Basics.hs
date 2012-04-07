@@ -2,17 +2,14 @@
 module Basics
        (module Data.Monoid, (<>),
         module Control.Applicative,
-        Irr(..), 
         Sort(..),
         above, oneLev, zero,
-        Ident, Identifier(..), DisplayContext,
-        Position, dummyPosition, identPosition, 
-        isDummyId, modId, synthId, dummyId, idString,
+        Ident(..), DisplayContext,
+        Position, dummyPosition, 
+        isDummyId, modId, synthId, dummyId, 
         Lattice(..)) where
 
 import Display
-import qualified RawSyntax as A
-import RawSyntax (Identifier(..))
 import Control.Applicative
 import Data.Monoid
 import Data.Sequence (Seq)
@@ -21,38 +18,24 @@ import Data.Sequence (Seq)
 (<>) :: Monoid a => a -> a -> a
 (<>) = mappend
 
------------
--- Irr
-
-newtype Irr a = Irr {fromIrr :: a}
-    deriving Show
-
-instance Eq (Irr a) where
-    x == y = True
-
-instance Pretty x => Pretty (Irr x) where
-    pretty (Irr x) = pretty x
-
 --------------
 -- Ident
-instance Pretty Identifier where
-    pretty (Identifier (_,x)) = text x
+instance Pretty Ident where
+    pretty (Ident _ x) = text x
 
 
-type Ident = Irr Identifier
+data Ident = Ident {identPosition :: Position, idString :: String}
+  deriving (Show,Eq)
 
 isDummyIdS ('_':x) = True
 isDummyIdS _ = False
 
-isDummyId (Irr (Identifier (_,xs))) = isDummyIdS xs
+isDummyId (Ident _ xs) = isDummyIdS xs
 
 synthId :: String -> Ident
-synthId x = Irr (Identifier (fromIrr $ dummyPosition,x))
+synthId = Ident dummyPosition 
 
 dummyId = synthId "_"
-
-idString :: Ident -> String
-idString (Irr (Identifier (_,name))) = name
 
 type DisplayContext = Seq Ident
 
@@ -61,12 +44,10 @@ type DisplayContext = Seq Ident
 
 type Position = (Int,Int)
 
-identPosition (Irr (Identifier (p,_))) = Irr p
-
-dummyPosition = Irr (0,0)
+dummyPosition = (0,0)
 
 modId :: (String -> String) -> Ident -> Ident
-modId f (Irr (Identifier (pos ,x)))  = (Irr (Identifier (pos,f x)))
+modId f (Ident pos x)  = Ident pos (f x)
 
 ------------------
 -- Sort

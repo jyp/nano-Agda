@@ -12,18 +12,21 @@ EHole.   Exp6 ::= Hole ;
 EVar.    Exp6 ::= AIdent ;
 ESet.    Exp6 ::= Sort ;
 EProj.   Exp4 ::= Exp4 "." AIdent ;
-EExtr.   Exp4 ::= Exp4 "/" AIdent ;
 EApp.    Exp3 ::= Exp3 Exp4 ;
 EPi.     Exp2  ::= Exp3 Arrow Exp2 ;
-ESigma.  Exp2  ::= Exp3 ";" Exp2 ;
+ESigma.  Exp2  ::= "{" [Exp] "}" ;
 EAbs.    Exp2  ::= "\\" [Bind] Arrow Exp2 ;
+EBox.    Exp2  ::= "<" AIdent ">" Exp2 ;
 EAnn.    Exp1 ::= Exp2 ":" Exp1 ;
-EPair.   Exp  ::= Decl "," Exp ;
+EPair.   Exp  ::= [Defin] ;
 
 coercions Exp 6 ;
 
-Decl. Decl ::= AIdent "=" Exp1 ;
-terminator AIdent "" ;
+separator Exp ";";
+
+
+Def.   Defin ::= AIdent "=" Exp ;
+separator Defin ",";
 
 token Arrow  ('-' '>') ;
 
@@ -34,7 +37,7 @@ terminator Bind "" ;
 
 token Natural digit+;
 
-position token Identifier ('!'|'['|']'|letter|digit|'-'|'_'|'\'')(('*'|'['|']'|letter|digit|'-'|'_'|'\'')*) ;
+position token Identifier ('!'|letter|digit|'-'|'_'|'\'')(('*'|'['|']'|letter|digit|'-'|'_'|'\'')*) ;
 position token Hole '?' ((letter|digit|'-'|'_'|'\'')*) ;
 
 position token Sort ('#' | '*' (digit*));

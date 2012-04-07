@@ -1,7 +1,7 @@
 {-# LANGUAGE PackageImports, GADTs, KindSignatures, StandaloneDeriving, EmptyDataDecls, FlexibleInstances, OverloadedStrings #-}
 
 module Display (Pretty(..), Doc, ($$), (<+>), text, hang, vcat, parensIf, sep, comma, nest, parens,
-                subscriptPretty, superscriptPretty, subscriptShow, render) where
+                subscriptPretty, superscriptPretty, subscriptShow, render, punctuate) where
 
 import GHC.Exts( IsString(..) )
 

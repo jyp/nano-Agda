@@ -1,20 +1,10 @@
--- Church-encoded Peano Naturals, danr@student.gu.se
-nat  = \A         -> (A -> A) -> A -> A     : * -> *,
+<m> -- "let-rec"
+(Nat = (A : #) -> A -> (A -> A) -> A
+      : #
+, zero = \A z s -> z
+      : m.Nat
+, succ = \n A z s -> n A (s z) s
+       : m.Nat -> m.Nat
+, two  = m.succ (m.succ m.zero)
+)
 
--- Zero
-zero = \A f x     -> x                      : (A : *) -> nat A,
-
--- Successor function
-succ = \A n f x   -> n f (f x)              : (A : *) -> nat A -> nat A,
-
--- Binary plus
-plus = \A n m f x -> n f (m f x)            : (A : *) -> nat A -> nat A -> nat A,
-
--- One
-one  = \A         -> succ A (zero A)        : (A : *) -> nat A,
-
--- Two
-two  = \A         -> succ A (one A)         : (A : *) -> nat A,
-
--- Two plus two: normalises nicely.
-\A                -> plus A (two A) (two A) : (A : *) -> nat A
