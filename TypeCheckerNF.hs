@@ -73,8 +73,8 @@ iType g (Sigma _ ((f,t):ts))
           let o = s1 ⊔ s2          
           return (sigma ((f,t'):ts'), star o)
 iType g e@(V _ x) = do
-  return $ (val $ value, wkn (x+1) $ typ)
-  where val (Direct v) = wkn (x+1) v
+  return $ (val $ value, wkn (x+1) ∙ typ)
+  where val (Direct v) = wkn (x+1) ∙ v
         val _ = var x -- We could do eta-expansion here: etaExpand (var x) typ
         Bind _ value typ = g `index` x
         
@@ -86,21 +86,21 @@ iType g (App e1 e2)
             case si of
               Pi _ ty ty' -> do 
                    v2 <- cType g e2 ty
-                   return (app v1 v2, subst0 v2 ty') 
+                   return (app v1 v2, subst0 v2 ∙ ty') 
               _             ->  throwError (e1,"invalid application")
 
 -- infer type of a dynamically-typed projection
 iType g e@(Proj box@(Box n (Pair _ fs) env) f) = do
   case lookup f fs of
     Nothing -> throwError (e,"field "<>text f<>" not found in pair")
-    Just x -> iType g (subst (box:map wk env) x)
+    Just x -> iType g (apply (box:wk ∘ env) x)
               
 iType g (Proj e f) = do
   (e',et) <- iType g e
   case et of 
     Sigma _ fs -> case break ((==f) . fst) fs of
       (hs,((_,t):_)) -> do
-        let tt = subst ([proj e h | (h,_) <- reverse hs] ++ map var [0..]) t
+        let tt = apply ([proj e h | (h,_) <- reverse hs] ++ map var [0..]) t
         {-report $ hang "projection:" 2 $ sep [
           "hs = " <> sep (map (text . fst) hs),
           "gg = " <> sep (map (display g) [proj e h | (h,_) <- hs]),
@@ -116,7 +116,7 @@ iType g (Pair _ fs) = do
   (fs,vs,ts) <- unzip3 <$> (forM fs $ \(f,x) -> do 
                             (x',xt) <- iType g x
                             return (f,x',xt))
-  return (pair (zip fs vs),sigma (zip fs [ wkn n t | (n,t) <- zip [0..] ts])) 
+  return (pair (zip fs vs),sigma (zip fs [ wkn n ∙ t | (n,t) <- zip [0..] ts])) 
   -- possible dependencies in the type are not discovered 
 
 iType g t@(Lam x (Hole _ _) e) = throwError (t,"cannot infer type for" <+> display g t)
@@ -125,9 +125,7 @@ iType g (Lam x ty e) = do
     (ve,t) <- iType (Bind x Abstract vty <| g) e
     return $ (Lam x vty ve, Pi x vty t)
   
-  
-
-iType g box@(Box n e0 env) = iType g (subst (box:map wk env) e0)
+iType g box@(Box n e0 env) = iType g (apply (box:wk ∘ env) e0)
 
     
 iType g t = throwError (t,"cannot infer type for" <+> display g t)
@@ -175,7 +173,7 @@ cType g (Pair _ []) (Sigma _ []) = return $ pair []
 cType g (Pair _ ((_,x):xs)) (Sigma _ ((f,xt):xts)) = do
   -- note that names do not have to match.  
   x' <- cType g x xt
-  Pair _ xs' <- cType g (pair xs) (subst0 x (sigma xts))
+  Pair _ xs' <- cType g (pair xs) (subst0 x ∙ sigma xts)
   return (pair ((f,x'):xs'))
 
 -- cType g (Box name e _) et = do

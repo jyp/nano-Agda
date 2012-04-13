@@ -1,8 +1,8 @@
 <m> -- "let-rec"
 (Nat = (A : #) -> A -> (A -> A) -> A
-      : #
+     : #
 , zero = \A z s -> z
-      : m.Nat
+       : m.Nat
 , succ = \n A z s -> n A (s z) s
        : m.Nat -> m.Nat
 , two  = m.succ (m.succ m.zero)

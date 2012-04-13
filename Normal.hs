@@ -19,9 +19,8 @@ data Term :: * where
      Lam :: Ident -> NF -> NF -> NF 
      App :: Neutral -> NF -> Neutral
      
-     Sigma  :: Position -> [(String,NF)] -> NF
-     Pair   :: Position -> [(String,NF)] -> NF 
-     -- Pair does not binds variables in Terms, but NOT in normal forms. 
+     Sigma  :: Position -> [(String,NF)] -> NF 
+     Pair   :: Position -> [(String,NF)] -> NF -- Note: Unlike Sigma, Pair do not bind variables
      Proj   :: Neutral -> String -> Neutral      
               
      V :: Position -> Int ->  -- ^ deBruijn index 
@@ -69,12 +68,14 @@ star = Star dummyPosition
 sigma = Sigma dummyPosition
 pair = Pair dummyPosition
 
--- | Hereditary substitution
-subst0 :: NF -> NF -> NF
-subst0 u = subst (u:map (var) [0..])  
+identity = map var [0..]
 
-subst :: Subst -> Term -> NF
-subst f t = case t of
+subst0 :: NF -> Subst
+subst0 u = u:identity
+
+-- | Hereditary substitution application
+apply :: Subst -> Term -> NF
+apply f t = case t of
   Star p x -> Star p x
   Lam i ty bo -> Lam i (s ty) (s' bo)
   Pair _ fs -> pair (map (second s) fs)
@@ -87,25 +88,25 @@ subst f t = case t of
   V _ x -> f !! x
   Box p x g -> Box p x (map s g)
   Ann x t -> Ann (s x) (s t)
- where s' = subst (var 0 : map wk f)
-       s  = subst f
+ where s' = apply (var 0 : wk ∘ f)
+       s  = apply f
 
+(∙) = apply
+σ ∘ ρ = map (apply σ) ρ
 
 -- | Hereditary application
 app :: NF -> NF -> NF 
-app (Lam i _ bo) u = subst0 u bo
--- app box@(Box _ (Lam i _ body) g) u = subst (box:u:map wk g) body
+app (Lam i _ bo) u = subst0 u ∙ bo
 app n            u = App n u
 
 -- | Hereditary projection
 proj :: NF -> String -> NF
 proj (Pair _ fs) f | Just x <- lookup f fs = x
--- proj box@(Box _ (Pair _ fs) g) f | Just x <- lookup f fs = subst (box:map wk g) x
 proj x k = Proj x k 
 
 -- | Weakening
-wkn :: Int -> NF -> NF
-wkn n = subst (map var [n..])
+wkn :: Int -> Subst
+wkn n = map var [n..]
 
 wk = wkn 1
 
