@@ -49,9 +49,7 @@ process fname modul = do
   -- putStrV 2 $ "\n[Linearized tree]\n\n" ++ printTree tree
   putStrV 2 $ "[Resolved into]" $$ pretty resolved
   let (checked,info) = runChecker $ iType mempty resolved
-  case info of
-    [] -> return ()
-    _ -> putStrV 0 $ vcat info -- display constraints, etc.
+  mapM (putStrV 0) info  -- display constraints, etc.
   case checked of
     Right (a,b) -> do 
        putStrV 0 $ "nf =" <+> pretty a
