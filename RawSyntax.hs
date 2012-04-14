@@ -26,7 +26,7 @@ separator Exp ";";
 
 
 Def.   Defin ::= AIdent "=" Exp ;
-separator Defin ",";
+separator nonempty Defin ",";
 
 token Arrow  ('-' '>') ;
 
