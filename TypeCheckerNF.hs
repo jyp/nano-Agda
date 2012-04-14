@@ -1,4 +1,4 @@
-{-# LANGUAGE PackageImports, TypeSynonymInstances, FlexibleInstances, GADTs #-}
+{-# LANGUAGE PackageImports, TypeSynonymInstances, FlexibleInstances, GADTs, TupleSections #-}
 
 module TypeCheckerNF where
 
@@ -81,6 +81,22 @@ iType g e@(V _ x) = do
 iType g (Hole p x) = do
   report $ hang (text ("context of " ++ x ++ " is")) 2 (dispContext g)
   return (hole x, hole ("type of " ++ x))
+
+iType g t@(Lam x (Hole _ _) e) = throwError (t,"cannot infer type for" <+> display g t)
+iType g (Lam x ty e) = do
+    (vty,vs) <- iSort g ty
+    (ve,t) <- iType (Bind x Abstract vty <| g) e
+    return $ (Lam x vty ve, Pi x vty t)
+
+iType g (Pair _ fs) = do
+  (fs,vs,ts) <- unzip3 <$> (forM fs $ \(f,x) -> do 
+                            (x',xt) <- iType g x
+                            return (f,x',xt))
+  return (pair (zip fs vs),sigma (zip fs [ wkn n ∙ t | (n,t) <- zip [0..] ts])) 
+  -- possible dependencies in the type are not discovered 
+  
+iType g e | Just e' <- evaluate e = iType g =<< comput g e e'
+  
 iType g (App e1 e2)
   =     do  (v1,si) <- iType g e1
             case si of
@@ -89,45 +105,17 @@ iType g (App e1 e2)
                    return (app v1 v2, subst0 v2 ∙ ty') 
               _             ->  throwError (e1,"invalid application")
 
--- infer type of a dynamically-typed projection
-iType g e@(Proj box@(Box n (Pair _ fs) env) f) = do
-  case lookup f fs of
-    Nothing -> throwError (e,"field "<>text f<>" not found in pair")
-    Just x -> iType g (apply (box:wk ∘ env) x)
-              
 iType g (Proj e f) = do
   (e',et) <- iType g e
   case et of 
     Sigma _ fs -> case break ((==f) . fst) fs of
       (hs,((_,t):_)) -> do
         let tt = apply ([proj e h | (h,_) <- reverse hs] ++ map var [0..]) t
-        {-report $ hang "projection:" 2 $ sep [
-          "hs = " <> sep (map (text . fst) hs),
-          "gg = " <> sep (map (display g) [proj e h | (h,_) <- hs]),
-          "e = " <> display g e,
-          "f = " <> text f,
-          "t = " <> display g t,
-          "tt = " <> display g tt] -}
         return (proj e f,tt)
       _ -> throwError (e,"field" <+> text f <+> "not found in type" <+> display g et)
     _ -> throwError (e,"type should be record:" <+> display g et)
     
-iType g (Pair _ fs) = do
-  (fs,vs,ts) <- unzip3 <$> (forM fs $ \(f,x) -> do 
-                            (x',xt) <- iType g x
-                            return (f,x',xt))
-  return (pair (zip fs vs),sigma (zip fs [ wkn n ∙ t | (n,t) <- zip [0..] ts])) 
-  -- possible dependencies in the type are not discovered 
 
-iType g t@(Lam x (Hole _ _) e) = throwError (t,"cannot infer type for" <+> display g t)
-iType g (Lam x ty e) = do
-    (vty,vs) <- iSort g ty
-    (ve,t) <- iType (Bind x Abstract vty <| g) e
-    return $ (Lam x vty ve, Pi x vty t)
-  
-iType g box@(Box n e0 env) = iType g (apply (box:wk ∘ env) e0)
-
-    
 iType g t = throwError (t,"cannot infer type for" <+> display g t)
          
 -- | Infer a sort, and normalise
@@ -169,19 +157,35 @@ cType g (Lam name ty0 e) (Pi name' ty ty')
            e' <- cType (Bind name Abstract ty <| g) e ty'
            return (Lam name ty e')
 
-cType g (Pair _ []) (Sigma _ []) = return $ pair []
-cType g (Pair _ ((_,x):xs)) (Sigma _ ((f,xt):xts)) = do
-  -- note that names do not have to match.  
-  x' <- cType g x xt
-  Pair _ xs' <- cType g (pair xs) (subst0 x ∙ sigma xts)
-  return (pair ((f,x'):xs'))
+cType g (Pair _ ignored) (Sigma _ []) = return $ pair ignored
+-- note: subtyping
+cType g (Pair _ ((f,x):xs)) (Sigma i fs@((f',xt):xts)) 
+-- BETTER: directly lookup the field in the pair instead.
+  | f /= f' = do  Pair _ fs' <- cType g (pair xs) (sigma fs)
+                  return $ pair ((f,x):fs')
+  | f == f' = do
+    -- note that names do not have to match.  
+    x' <- cType g x xt
+    Pair _ xs' <- cType g (pair xs) (subst0 x ∙ sigma xts)
+    return (pair ((f,x'):xs'))
 
 -- cType g (Box name e _) et = do
 --   e' <- cType (Bind name (Direct (Box name e (map var [0..]))) et <| g) e et -- FIXME: env.
 --   return (Box name e' $ map var [0..])-- FIXME: env.
   
-cType g e v 
-  =     do (e',v') <- iType g e
-           unify g e v v'
-           return e'
+cType g (Proj e f) t = do
+  e' <- cType g e (sigma [(f,t)])
+  return (proj e' f)
+  
+  
+cType g e v | Just v' <- evaluate v = cType g e =<< comput g v v'
+cType g e v | Just e' <- evaluate e = (\x -> cType g x v) =<< comput g e e'
 
+cType g e v = do 
+  (e',v') <- iType g e
+  unify g e v v'
+  return e'
+
+comput g x y = do 
+  report $ display g x <> "  -->  " <> display g y
+  return y

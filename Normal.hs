@@ -60,6 +60,13 @@ instance Eq Term where
   _ == _ = False
 
 
+-- | Untyped evaluation -- of boxes only.
+evaluate box@(Box n e0 env) = return $ apply (box:wk ∘ env) e0
+evaluate (Proj x f) = (\t -> proj t f) <$> evaluate x
+evaluate (App f x) = (`app` x) <$> evaluate f 
+evaluate _ = Nothing
+
+
 type Subst = [NF]
 
 var = V dummyPosition
@@ -78,10 +85,10 @@ apply :: Subst -> Term -> NF
 apply f t = case t of
   Star p x -> Star p x
   Lam i ty bo -> Lam i (s ty) (s' bo)
-  Pair _ fs -> pair (map (second s) fs)
+  Pair i fs -> Pair i (map (second s) fs)
   Pi i a b -> Pi i (s a) (s' b)
-  Sigma _ [] -> sigma []
-  Sigma _ ((f,x):xs) -> let Sigma _ xs' = s' (sigma xs) in sigma ((f,s x):xs')
+  Sigma i [] -> Sigma i []
+  Sigma i ((f,x):xs) -> let Sigma _ xs' = s' (sigma xs) in Sigma i ((f,s x):xs')
   (App a b) -> app (s a) (s b)
   (Proj x k) -> proj (s x) k 
   Hole p x -> Hole p x
