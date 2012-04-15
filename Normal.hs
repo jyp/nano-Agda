@@ -23,11 +23,15 @@ data Term :: * where
      Pair   :: Position -> [(String,NF)] -> NF -- Note: Unlike Sigma, Pair do not bind variables
      Proj   :: Neutral -> String -> Neutral      
               
+     Fin :: [String] -> NF
+     Tag :: String -> NF
+     Cas :: Neutral -> [(String, NF)] -> Neutral
+
      V :: Position -> Int ->  -- ^ deBruijn index 
           Neutral
      Hole :: Position -> String -> Neutral
      
-     Box :: Ident -> Term -> Subst -> NF
+     Box :: Ident -> NF -> Term -> NF
      -- | type annotation     
      Ann :: Neutral -> NF -> NF 
   deriving (Show)
@@ -42,29 +46,12 @@ termPosition t = case t of
    (Pair p _ ) -> p
    (App x y) -> s x
    (Proj x _) -> s x
-   (Ann x _) -> s x
+   (Ann x _) -> s x 
+   (Cas c _) -> termPosition c
+   _ -> dummyPosition
   where s = termPosition
 
-instance Eq Term where
-  Star _ s == Star _ s' = s == s'
-  Pi _ a b == Pi _ a' b' = a == a' && b == b'
-  Lam _ a b == Lam _ a' b' = a == a' && b == b'
-  App a b == App a' b' = a == a' && b == b'
-  Sigma _ xs == Sigma _ xs' = xs == xs'
-  Pair _ xs == Pair _ xs' = xs == xs'
-  Proj x f == Proj x' f' = x == x' && f == f'
-  V _ x == V _ x' = x == x'
-  Hole _ _ == Hole _ _ = True
-  Box n t g == Box n' t' g' = n == n' && and [g!!v == g'!!v | v <- freeVars t]
-  Ann x _ == Ann x' _ = x == x'
-  _ == _ = False
 
-
--- | Untyped evaluation -- of boxes only.
-evaluate box@(Box n e0 env) = return $ apply (box:wk ∘ env) e0
-evaluate (Proj x f) = (\t -> proj t f) <$> evaluate x
-evaluate (App f x) = (`app` x) <$> evaluate f 
-evaluate _ = Nothing
 
 
 type Subst = [NF]
@@ -74,6 +61,8 @@ hole = Hole dummyPosition
 star = Star dummyPosition
 sigma = Sigma dummyPosition
 pair = Pair dummyPosition
+tag = Tag
+fin = Fin
 
 identity = map var [0..]
 
@@ -93,8 +82,12 @@ apply f t = case t of
   (Proj x k) -> proj (s x) k 
   Hole p x -> Hole p x
   V _ x -> f !! x
-  Box p x g -> Box p x (map s g)
+  Box n t e -> Box n (s t) (s' e)
   Ann x t -> Ann (s x) (s t)
+  
+  Cas x cs -> cas (s x) (map (second s) cs)
+  Fin x -> Fin x
+  Tag x -> Tag x
  where s' = apply (var 0 : wk ∘ f)
        s  = apply f
 
@@ -110,6 +103,10 @@ app n            u = App n u
 proj :: NF -> String -> NF
 proj (Pair _ fs) f | Just x <- lookup f fs = x
 proj x k = Proj x k 
+
+cas :: NF -> [(String,NF)] -> NF
+cas (Tag t) cs | Just x <- lookup t cs = x
+cas x cs = Cas x cs
 
 -- | Weakening
 wkn :: Int -> Subst
@@ -136,8 +133,11 @@ freeVars (Star _ _) = mempty
 freeVars (Hole _ _) = mempty
 freeVars (Pair _ xs) = concatMap (freeVars . snd) xs
 freeVars (Proj x _) = freeVars x
-freeVars (Box _ b _) = dec (freeVars b)
+freeVars (Box _ t e) = freeVars t <> dec (freeVars e)
 freeVars (Ann x t) = freeVars x <> freeVars t
+freeVars (Fin _) = []
+freeVars (Tag _) = []
+freeVars (Cas t cs) = freeVars t <> concatMap (freeVars . snd) cs
 
 iOccursIn :: Int -> Term -> Bool
 iOccursIn x t = x `elem` (freeVars t)
@@ -160,8 +160,13 @@ cPrint p ii t@(Pi _ _ _)    = parensIf (p > 1) (printBinders "→" ii mempty $ n
 cPrint p ii t@(Sigma _ _) = parensIf (p > 1) (printBinders "×" ii mempty $ nestedSigmas t)
 cPrint p ii (t@(Lam _ _ _)) = parensIf (p > 1) (nestedLams ii mempty t)
 cPrint p ii (Pair _ fs) = parensIf (p > (-1)) (sep (punctuate comma [text name <+> text "=" <+> cPrint 0 ii x | (name,x) <- fs ]))
-cPrint p ii (Box i t g) = pretty i <> {- cPrint 100 (i <| ii) t <> -} "[" <> sep (punctuate ";" (dispEnv ii [(ii `index` f,g!!f) | f <- dec (freeVars t)])) <> "]" 
+cPrint p ii (Box x t e) = "<" <> pretty i <> ":" <> cPrint 0 ii t <> ">" <> cPrint 2 (i <| ii) e
+        where i = allocName ii x
+{-                          {- cPrint 100 (i <| ii) t <> -} "[" <> sep (punctuate ";" (dispEnv ii [(ii `index` f,g!!f) | f <- dec (freeVars t)])) <> "]" -}
 cPrint p ii (Ann x t) = parensIf (p > 0) (cPrint 0 ii x <+> ":" <+> cPrint 0 ii t)
+cPrint p ii (Fin ts) = "[" <> sep (punctuate comma (map text ts)) <> "]"
+cPrint p ii (Tag t) = "'" <> text t
+cPrint p ii (Cas x cs) = "case" <+> cPrint 0 ii x <+> "of {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
 
 dispEnv :: DisplayContext -> [(Ident,NF)] -> [Doc]
 dispEnv ii g = [pretty i <> "↦" <> cPrint 0 ii v | (i,v) <- g]

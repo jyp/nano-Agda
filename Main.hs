@@ -45,10 +45,12 @@ run s fname = let ts = myLLexer s in case pExp ts of
 
 process fname modul = do
   let resolved = runResolver $ resolveTerm modul
-  -- putStrV 2 $ "\n[Abstract Syntax]\n\n" ++ show tree
-  -- putStrV 2 $ "\n[Linearized tree]\n\n" ++ printTree tree
-  putStrV 2 $ "[Resolved into]" $$ pretty resolved
-  let (checked,info) = runChecker $ iType mempty resolved
+  putStrV 3 $ "[Resolved into]" $$ pretty resolved
+  let evaluated = case evaluate resolved of
+         Nothing -> resolved
+         Just x -> x
+  putStrV 2 $ "[Evaluated into]" $$ pretty evaluated         
+  let (checked,info) = runChecker $ iType mempty evaluated
   mapM (putStrV 0) info  -- display constraints, etc.
   case checked of
     Right (a,b) -> do 
