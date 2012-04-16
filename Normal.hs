@@ -94,26 +94,31 @@ apply f t = case t of
 (∙) = apply
 σ ∘ ρ = map (apply σ) ρ
 
-ann (Pair i []) (Sigma _ []) = Pair i []
-ann (Pair i ((f,x):xs)) (Sigma _ ((f',t):ts))
-   | f == f', 
-     Pair _ xs' <- ann (pair xs) (subst0 x ∙ sigma ts) 
-   = Pair i ((f',ann x t):xs')
-ann (Lam i a b) (Pi _ aa bb) = Lam i aa (ann b bb) -- FIXME: subst0 (var 0 `nna` a)
+-- ann (Pair i []) (Sigma _ []) = Pair i []
+-- ann (Pair i ((f,x):xs)) (Sigma _ ((f',t):ts))
+--    | f == f', 
+--      Pair _ xs' <- ann (pair xs) (subst0 x ∙ sigma ts) 
+--    = Pair i ((f',ann x t):xs')
+-- ann (Lam i a b) (Pi _ aa bb) = Lam i aa (ann b bb) -- FIXME: subst0 (var 0 `nna` a)
 ann x t = Ann x t
          
 
 -- | Hereditary application
 app :: NF -> NF -> NF 
 app (Lam i _ bo) u = subst0 u ∙ bo
+-- app (Pi  i _ bo) u = subst0 u ∙ bo
+-- app (Box i t e) u = Box i (t `app` u) (e `app` u) -- FIXME: subst only if type-checks
 app n            u = App n u
 
 -- | Hereditary projection
 proj :: NF -> String -> NF
 proj (Pair _ fs) f | Just x <- lookup f fs = x
+-- proj box@(Box i (Sigma _ fs) e) f | Just pt <- projType e f fs = Box i pt t (e `proj` f)
 proj x k = Proj x k 
 
+
 cas :: NF -> [(String,NF)] -> NF
+-- FIXME: box case
 cas (Tag t) cs | Just x <- lookup t cs = x
 cas x cs = Cas x cs
 

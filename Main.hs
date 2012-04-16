@@ -45,12 +45,10 @@ run s fname = let ts = myLLexer s in case pExp ts of
 
 process fname modul = do
   let resolved = runResolver $ resolveTerm modul
-  putStrV 3 $ "[Resolved into]" $$ pretty resolved
-  let evaluated = case evaluate resolved of
-         Nothing -> resolved
-         Just x -> x
-  putStrV 2 $ "[Evaluated into]" $$ pretty evaluated         
-  let (checked,info) = runChecker $ iType mempty evaluated
+  putStrV 4 $ "[Resolved into]" $$ pretty resolved
+  let opened = uncheckedOpen resolved
+  putStrV 3 $ "[Opened to]" $$ pretty opened
+  let (checked,info) = runChecker $ (iType mempty opened)
   mapM (putStrV 0) info  -- display constraints, etc.
   case checked of
     Right (a,b) -> do 
@@ -66,8 +64,4 @@ main = do
   results <- mapM runFile (files options)
   let oks = filter id results
   putStrV 0 $ pretty (length oks) <> "/" <> pretty (length results) <+> "files typecheck."
-
-
-
-
 

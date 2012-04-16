@@ -6,6 +6,7 @@ import Prelude hiding (length)
 import Basics
 import Display
 import Control.Monad.Error
+import Data.Maybe
 import Control.Monad.Trans.Error (ErrorT, runErrorT)
 import Control.Monad.Trans.Writer
 import Data.Functor.Identity
@@ -45,23 +46,22 @@ dispContext ctx = case viewl ctx of
 
 -- | Infer a type and evaluate to normal form
 iType :: Context -> Term -> Result (Value,Type)
-iType g (Ann e tyt)
-  =     do  (ty,o) <- iSort g tyt 
-            v <- cType g e ty
-            return (v,ty) -- type annotations are removed
-iType g t@(Star p s)
-   =  return (star s,star $ above s)  
-iType g (Pi ident tyt tyt')  
-   =  do  (ty ,s1) <- iSort g tyt 
-          (ty',s2) <- iSort (Bind ident ty <| g) tyt'
-          let o = s1 ⊔ s2
-          return (Pi ident ty ty', star o)
-iType g (Sigma _ []) = return (sigma [],star 0)          
-iType g (Sigma _ ((f,t):ts))  
-   =  do  (t',s1)  <- iSort g t 
-          (Sigma _ ts',s2) <- iSort (Bind (synthId f)  t' <| g) (sigma ts)
-          let o = s1 ⊔ s2          
-          return (sigma ((f,t'):ts'), star o)
+iType g (Ann e et) = do
+  (et',o) <- iSort g et 
+  e' <- cType g e et'
+  return (e',et') -- type annotations are removed once they're checked
+iType g t@(Star p s) =  return (star s,star $ above s)  
+iType g (Pi ident tyt tyt')  = do
+    (ty ,s1) <- iSort g tyt 
+    (ty',s2) <- iSort (Bind ident ty <| g) tyt'
+    let o = s1 ⊔ s2
+    return (Pi ident ty ty', star o)
+iType g (Sigma i []) = return (Sigma i [],star 0)          
+iType g (Sigma i ((f,t):ts)) = do
+   (t',s1)  <- iSort g t 
+   (Sigma _ ts',s2) <- iSort (Bind (synthId f)  t' <| g) (sigma ts)
+   let o = s1 ⊔ s2          
+   return (Sigma i ((f,t'):ts'), star o)
 iType g e@(V _ x) = do
   return $ (var x, wkn (x+1) ∙ typ)
   where Bind _ typ = g `index` x
@@ -86,40 +86,39 @@ iType g (Pair _ fs) = do
 iType g (Tag t) = return (Tag t,Fin [t])
 iType g (Fin ts) = return (Fin ts,star 0)
   
--- iType g e | Just e' <- evaluate e = iType g =<< comput g e e'
-  
-iType g (App e1 e2)
-  =     do  (e1',et) <- iType g e1
-            et' <- eval g et
-            case et' of
-              Pi _ ty ty' -> do 
-                   v2 <- cType g e2 ty
-                   return (app e1' v2, subst0 v2 ∙ ty') 
-              _             ->  throwError (e1,"type should be function:" <> display g et')
+iType g (App e1 e2) = do
+   (e1',et) <- iType g e1
+   et' <- open g et
+   case et' of
+     Pi _ ty ty' -> do 
+          v2 <- cType g e2 ty
+          return (app e1' v2, subst0 v2 ∙ ty') 
+     _             ->  throwError (e1,"type should be function:" <> display g et')
 
 iType g (Proj e f) = do
   (e',et) <- iType g e
-  et' <- eval g et
+  et' <- open g et
   case et' of 
-    Sigma _ fs -> case break ((==f) . fst) fs of
-      (hs,((_,t):_)) -> do
-        let tt = apply ([proj e h | (h,_) <- reverse hs] ++ map var [0..]) t
-        return (proj e f,tt)
-      _ -> throwError (e,"field" <+> text f <+> "not found in type" <+> display g et')
-    _ -> throwError (e,"type should be record:" <+> display g et')
+    Sigma _ fs -> case projType e f fs of
+                    Just tt -> return (proj e f,tt)
+                    _ -> throwError (e,"field" <+> text f <+> "not found in type" <+> display g et')
+    _ -> throwError (e,hang "expected record:" 2 $ sep ["term:" <+> display g e,
+                                                        "type:" <+> display g et',
+                                                        "field:" <+> text f])
     
 iType g (Box n t e) = do
   (t',_) <- iSort g t
   return (Box n t' e,t')
-  -- checking inside the box is delayed until one needs to actually evaluate its contents.
+  -- checking inside the box is delayed until one needs to compare its content to something else.
 
-iType g t = throwError (t,"cannot infer type for" <+> display g t)
+iType g t = throwError (t,hang "cannot infer type for" 2 $ display g t)
          
 -- | Infer a sort, and normalise
 iSort :: Context -> Term -> Result (Type,Sort)
 iSort g e = do
   (val,v) <- iType g e
-  case v of 
+  v' <- open g v
+  case v' of 
     Star _ i -> return (val,i)
     Hole _ h -> do 
          report $ text h <+> "must be a type"
@@ -148,7 +147,9 @@ cType g (Pair _ ((f,x):xs)) (Sigma i fs@((f',xt):xts))
   | f == f' = do
     -- note that names do not have to match.  
     x' <- cType g x xt
-    Pair _ xs' <- cType g (pair xs) (subst0 x ∙ sigma xts)
+    report $ hang "Remains to check: " 2 $ sep ["pair:" <+> display g (pair xs), 
+                                                "type:" <+>  display g (subst0 x' ∙ sigma xts)]
+    Pair _ xs' <- cType g (pair xs) (subst0 x' ∙ sigma xts)
     return (pair ((f,x'):xs'))
 
 cType g (Cas c cs) t = do
@@ -159,26 +160,14 @@ cType g (Cas c cs) t = do
      return (p,v')
   return (cas c' cs')
   
-  
--- cType g e v | Just v' <- evaluate v = cType g e =<< comput g v v'
--- cType g e v | Just e' <- evaluate e = (\x -> cType g x v) =<< comput g e e'
-
-{-
-cType g (Proj e f) t = do
-  e' <- cType g e (sigma [(f,t)])
-  return (proj e' f)
--}
+cType g e box | isBox box = cType g e =<< open g box
 
 cType g e v = do 
+  -- report $ hang "no checking rule for" 2 $ vcat ["term = " <> display g e, "type = " <>display g v]
   (e',v') <- iType g e
   unify g e v' v
   return e'
 
-comput g x y = do 
-  report $ display g x <> "  -->  " <> display g y
-  return y
-  
-  
 -- | Unification with subtyping
 unify :: Context -> Term -> Type -> Type -> Result ()
 unify g0 e q0' q0 = unif g0 q0' q0 where 
@@ -202,9 +191,9 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
      (Tag t  , Tag t') -> check $ t == t'
      (Fin ts , Fin ts') -> check $ ts == ts'
      (Cas x xs , Cas x' xs') -> x <: x' >> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
-     _ | Just x' <- evaluate q' -> do
-           comput g q' x' -- FIXME: x' should be type-checked.
-           x' <: q
+     _ | isBox q' -> do
+       x' <- open g q' 
+       x' <: q
      (Ann x _ , x') -> x <: x'
      (x , Ann x' _) -> x <: x'
      _  -> crash
@@ -221,30 +210,33 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
                                 "is not sub of:" <+> display g q,
                                 "inferred:" <+> display g0 q0',
                                 "expected:" <+> display g0 q0 ,
-                                "for:" <+> display g e ,
+                                "for:" <+> display g0 e ,
                                 "context:" <+> dispContext g0])
            eqList p [] [] = return ()
            eqList p (x:xs) (x':xs') = p x x' >> eqList p xs xs'
            eqList p _ _ = crash
 
-           
-eval :: Context -> Term -> Result Term
-eval g x = case evaluate x of 
-  Nothing -> return x
-  Just x' -> comput g x x'  >> return x'  -- FIXME: x' should be type-checked.
+uncheckedOpen box@(Box i t e) = (subst0 box ∙ e) `ann` t
+uncheckedOpen x = x
 
-{-
-open box@(Box i t e) = do
-  report "opening" i
-  cType (subst0 box ∙ e) t
-open x = return x
--}
+open g box = case evaluate box of
+               Just (o,t) -> do
+                 report ("opening" <+> display g box <+> " to " <> display g o) 
+                 cType g o t 
+               _ -> return box
 
--- FIXME: here we need to push these things inside the box; not to open it.
--- Also, this should be done as part of the regular evaluation.
--- | Dynamically-typed evaluation -- of boxes only.
-evaluate box@(Box _ t e) = return (ann (subst0 box ∙ e) t)
-evaluate (Proj x f) = (`proj` f) <$> evaluate x
-evaluate (App f x) = (`app` x) <$> evaluate f 
-evaluate (Cas x cs) = (`cas` cs) <$> evaluate x
+
+projType e f fs = case break ((==f) . fst) fs of
+                    (hs,((_,t):_)) -> Just (([proj e h | (h,_) <- reverse hs] ++ map var [0..]) ∙ t)
+                    _ -> Nothing
+
+
+isBox = isJust . evaluate
+
+evaluate :: Term -> Maybe (Term,Type)
+evaluate box@(Box _ t e) = return (subst0 box ∙ e,t)
+evaluate (Proj x f) | Just (x',Sigma _ fs) <- evaluate x, Just tt <- projType x' f fs = Just (proj x' f, tt)
+-- evaluate (App f x) | Just = (`app` x) <$> evaluate f 
+-- evaluate (Cas x cs) = (`cas` cs) <$> evaluate x 
+-- FIXME: do it.
 evaluate _ = Nothing
