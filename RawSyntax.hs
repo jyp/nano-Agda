@@ -41,7 +41,7 @@ terminator Bind "" ;
 
 token Natural digit+;
 
-position token Identifier ('!'|letter|digit|'-'|'_'|'\'')((letter|digit|'-'|'_'|'\'')*) ;
+position token Identifier ('!'|letter|digit|'-'|'_')((letter|digit|'-'|'_'|'\'')*) ;
 position token Hole '?' ((letter|digit|'-'|'_'|'\'')*) ;
 
 position token Sort ('#' | '*' (digit*));

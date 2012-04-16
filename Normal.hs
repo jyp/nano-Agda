@@ -99,6 +99,7 @@ ann (Pair i ((f,x):xs)) (Sigma _ ((f',t):ts))
    | f == f', 
      Pair _ xs' <- ann (pair xs) (subst0 x ∙ sigma ts) 
    = Pair i ((f',ann x t):xs')
+ann (Lam i a b) (Pi _ aa bb) = Lam i aa (ann b bb) -- FIXME: subst0 (var 0 `nna` a)
 ann x t = Ann x t
          
 

@@ -233,6 +233,15 @@ eval g x = case evaluate x of
   Nothing -> return x
   Just x' -> comput g x x'  >> return x'  -- FIXME: x' should be type-checked.
 
+{-
+open box@(Box i t e) = do
+  report "opening" i
+  cType (subst0 box ∙ e) t
+open x = return x
+-}
+
+-- FIXME: here we need to push these things inside the box; not to open it.
+-- Also, this should be done as part of the regular evaluation.
 -- | Dynamically-typed evaluation -- of boxes only.
 evaluate box@(Box _ t e) = return (ann (subst0 box ∙ e) t)
 evaluate (Proj x f) = (`proj` f) <$> evaluate x
