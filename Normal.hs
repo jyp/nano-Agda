@@ -83,7 +83,7 @@ apply f t = case t of
   Hole p x -> Hole p x
   V _ x -> f !! x
   Box n t e -> Box n (s t) (s' e)
-  Ann x t -> Ann (s x) (s t)
+  Ann x t -> ann (s x) (s t)
   
   Cas x cs -> cas (s x) (map (second s) cs)
   Fin x -> Fin x
@@ -93,6 +93,14 @@ apply f t = case t of
 
 (∙) = apply
 σ ∘ ρ = map (apply σ) ρ
+
+ann (Pair i []) (Sigma _ []) = Pair i []
+ann (Pair i ((f,x):xs)) (Sigma _ ((f',t):ts))
+   | f == f', 
+     Pair _ xs' <- ann (pair xs) (subst0 x ∙ sigma ts) 
+   = Pair i ((f',ann x t):xs')
+ann x t = Ann x t
+         
 
 -- | Hereditary application
 app :: NF -> NF -> NF 

@@ -6,15 +6,12 @@ import Prelude hiding (length)
 import Basics
 import Display
 import Control.Monad.Error
-import Data.Char
-import Data.Maybe (isJust)
 import Control.Monad.Trans.Error (ErrorT, runErrorT)
 import Control.Monad.Trans.Writer
 import Data.Functor.Identity
 import Data.Sequence hiding (replicate,zip,reverse)
 import Data.Foldable (toList)
 import Normal 
-import qualified Normal
 import Options
 
 instance Error (Term,Doc) where
@@ -93,22 +90,23 @@ iType g (Fin ts) = return (Fin ts,star 0)
   
 iType g (App e1 e2)
   =     do  (e1',et) <- iType g e1
-            et' <- eval et
+            et' <- eval g et
             case et' of
               Pi _ ty ty' -> do 
                    v2 <- cType g e2 ty
                    return (app e1' v2, subst0 v2 ∙ ty') 
-              _             ->  throwError (e1,"invalid application")
+              _             ->  throwError (e1,"type should be function:" <> display g et')
 
 iType g (Proj e f) = do
   (e',et) <- iType g e
-  case et of 
+  et' <- eval g et
+  case et' of 
     Sigma _ fs -> case break ((==f) . fst) fs of
       (hs,((_,t):_)) -> do
         let tt = apply ([proj e h | (h,_) <- reverse hs] ++ map var [0..]) t
         return (proj e f,tt)
-      _ -> throwError (e,"field" <+> text f <+> "not found in type" <+> display g et)
-    _ -> throwError (e,"type should be record:" <+> display g et)
+      _ -> throwError (e,"field" <+> text f <+> "not found in type" <+> display g et')
+    _ -> throwError (e,"type should be record:" <+> display g et')
     
 iType g (Box n t e) = do
   (t',_) <- iSort g t
@@ -183,18 +181,7 @@ comput g x y = do
   
 -- | Unification with subtyping
 unify :: Context -> Term -> Type -> Type -> Result ()
-unify g e q' q = unif g q' q where 
-   crash :: Result ()
-   crash = throwError (e,hang "type mismatch: " 2 $ vcat 
-                                                ["inferred:" <+> display g q',
-                                                 "expected:" <+> display g q ,
-                                                 "for:" <+> display g e ,
-                                                 "context:" <+> dispContext g])
-   check :: Bool -> Result () 
-   check c = unless c crash 
-   eqList p [] [] = return ()
-   eqList p (x:xs) (x':xs') = p x x' >> eqList p xs xs'
-   eqList p _ _ = crash
+unify g0 e q0' q0 = unif g0 q0' q0 where 
    unif :: Context -> Type -> Type -> Result ()
    unif g q' q = case (q',q) of
      (Star _ s , Star _ s') -> check $ s == s'
@@ -212,26 +199,42 @@ unify g e q' q = unif g q' q where
      (Hole _ _, _) -> constraint
      (_, Hole _ _) -> constraint
      (Box _ t e , Box _ t' e') -> t <: t' >> e <: e'
-     (Ann x _ , Ann x' _) -> x <: x'
      (Tag t  , Tag t') -> check $ t == t'
      (Fin ts , Fin ts') -> check $ ts == ts'
      (Cas x xs , Cas x' xs') -> x <: x' >> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
      _ | Just x' <- evaluate q' -> do
            comput g q' x' -- FIXME: x' should be type-checked.
            x' <: q
+     (Ann x _ , x') -> x <: x'
+     (x , Ann x' _) -> x <: x'
      _  -> crash
      where (<:) :: Type -> Type -> Result ()
            (<:) = unif g
            infix 4 <:
            constraint = report $ vcat ["constraint: " <> display g q',
                                        "subtype of: " <> display g q]
+           check :: Bool -> Result () 
+           check c = unless c crash 
+           crash :: Result ()
+           crash = throwError (e,hang "type mismatch: " 2 $ vcat 
+                               ["type:         " <+> display g q',
+                                "is not sub of:" <+> display g q,
+                                "inferred:" <+> display g0 q0',
+                                "expected:" <+> display g0 q0 ,
+                                "for:" <+> display g e ,
+                                "context:" <+> dispContext g0])
+           eqList p [] [] = return ()
+           eqList p (x:xs) (x':xs') = p x x' >> eqList p xs xs'
+           eqList p _ _ = crash
+
            
-eval g (x,t) = case evaluate x of 
-  Nothing -> return (x,t)
-  Just x' -> comput g x x'  >> return (x',t)  -- FIXME: x' should be type-checked.
+eval :: Context -> Term -> Result Term
+eval g x = case evaluate x of 
+  Nothing -> return x
+  Just x' -> comput g x x'  >> return x'  -- FIXME: x' should be type-checked.
 
 -- | Dynamically-typed evaluation -- of boxes only.
-evaluate box@(Box _ t e) = return (subst0 box ∙ e)
+evaluate box@(Box _ t e) = return (ann (subst0 box ∙ e) t)
 evaluate (Proj x f) = (`proj` f) <$> evaluate x
 evaluate (App f x) = (`app` x) <$> evaluate f 
 evaluate (Cas x cs) = (`cas` cs) <$> evaluate x

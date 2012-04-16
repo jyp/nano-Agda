@@ -1,9 +1,11 @@
 <m: {Bool : *
-    ;Or : *}> 
+    ;Or : * -> * -> *
+    ;TT : *
+    ;Nat : *}> 
 (Bool = [true,false]
 ,Or = \ (A:*) (B:*) -> {t : m.Bool : *; v : case t of 
       {true = A,
       false = B} : * }
 ,TT = [tt]
-,Nat = m.Or m.TT
+,Nat = m.Or m.TT m.Nat
 )
