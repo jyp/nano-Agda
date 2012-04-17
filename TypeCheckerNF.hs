@@ -106,9 +106,9 @@ iType g (Proj e f) = do
                                                         "type:" <+> display g et',
                                                         "field:" <+> text f])
     
-iType g (Box n t e) = do
+iType g (Box n t e env) = do
   (t',_) <- iSort g t
-  return (Box n t' e,t')
+  return (Box n t' e env,t')
   -- checking inside the box is delayed until one needs to compare its content to something else.
 
 iType g t = throwError (t,hang "cannot infer type for" 2 $ display g t)
@@ -187,7 +187,7 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
      (V _ x , V _ x') -> check (x == x')
      (Hole _ _, _) -> constraint
      (_, Hole _ _) -> constraint
-     (Box _ t e , Box _ t' e') -> t <: t' >> e <: e'
+     (Box n t e env, Box n' t' e' env') -> check (n == n') >> sequence_ [env!!v <: env'!!v | v <- dec (freeVars e)]
      (Tag t  , Tag t') -> check $ t == t'
      (Fin ts , Fin ts') -> check $ all (`elem` ts') ts
      (Cas x xs , Cas x' xs') -> x <: x' >> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
@@ -219,7 +219,7 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
            eqList p (x:xs) (x':xs') = p x x' >> eqList p xs xs'
            eqList p _ _ = crash
 
-uncheckedOpen box@(Box i t e) = (subst0 box ∙ e) `ann` t
+uncheckedOpen box@(Box i t e _) = (subst0 box ∙ e) `ann` t
 uncheckedOpen x = x
 
 open g box = case evaluate box of
@@ -239,7 +239,7 @@ projType e f fs = case break ((==f) . fst) fs of
 isBox = isJust . evaluate
 
 evaluate :: Term -> Maybe (Term,Type)
-evaluate box@(Box _ t e) = return (subst0 box ∙ e,t)
+evaluate box@(Box _ t e env) = return ((box : wk ∘ env) ∙ e,t)
 evaluate (Proj x f) | Just (x',Sigma _ fs) <- evaluate x, Just tt <- projType x' f fs = Just (proj x' f, tt)
 evaluate (App f x) | Just (f',Pi _ _ b) <- evaluate f = Just (f' `app` x, subst0 x ∙ b)
 -- evaluate (Cas x cs) = (`cas` cs) <$> evaluate x 

@@ -71,7 +71,7 @@ resolveTerm (A.EPair defs) = pair <$> (forM defs $ \(A.Def (A.AIdent i@(Identifi
                                           e' <- resolveTerm e
                                           return (f,e'))
 resolveTerm (A.EAnn e1 e2) = Ann <$> resolveTerm e1 <*> resolveTerm e2
-resolveTerm (A.EBox (A.AIdent i) t e) = Box (i2i i) <$> resolveTerm t <*> local (insertVar i) (resolveTerm e)
+resolveTerm (A.EBox (A.AIdent i) t e) = Box (i2i i) <$> resolveTerm t <*> local (insertVar i) (resolveTerm e) <*> pure (map var [0..])
 
 resolveTerm (A.EFin ts) = return $ Fin [t | (A.AIdent i@(Identifier (_p,t))) <- ts]
 resolveTerm (A.ETag (A.AIdent i@(Identifier (_p,t)))) = return $ Tag t

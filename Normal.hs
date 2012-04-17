@@ -1,7 +1,7 @@
-{-# LANGUAGE GADTs, KindSignatures, OverloadedStrings, TypeSynonymInstances, TypeFamilies, MultiParamTypeClasses, RankNTypes, PatternGuards #-}
+{-# LANGUAGE GADTs, KindSignatures, OverloadedStrings, TypeSynonymInstances, RankNTypes, PatternGuards #-}
 module Normal where
 
-import Prelude hiding (length,elem,foldl,all,concatMap,and,drop)
+import Prelude hiding (length,elem,foldl,all,concatMap,and,drop,concat)
 import Basics
 import Display
 import Data.Foldable
@@ -31,7 +31,7 @@ data Term :: * where
           Neutral
      Hole :: Position -> String -> Neutral
      
-     Box :: Ident -> NF -> Term -> NF
+     Box :: Ident -> NF -> Term -> Subst -> NF
      -- | type annotation     
      Ann :: Neutral -> NF -> NF 
   deriving (Show)
@@ -69,6 +69,12 @@ identity = map var [0..]
 subst0 :: NF -> Subst
 subst0 u = u:identity
 
+-- | Weakening
+wkn :: Int -> Subst
+wkn n = map var [n..]
+
+wk = wkn 1
+
 -- | Hereditary substitution application
 apply :: Subst -> Term -> NF
 apply f t = case t of
@@ -82,7 +88,7 @@ apply f t = case t of
   (Proj x k) -> proj (s x) k 
   Hole p x -> Hole p x
   V _ x -> f !! x
-  Box n t e -> Box n (s t) (s' e)
+  Box n t e g -> Box n (s t) (s' e) (map s g)
   Ann x t -> ann (s x) (s t)
   
   Cas x cs -> cas (s x) (map (second s) cs)
@@ -94,42 +100,22 @@ apply f t = case t of
 (∙) = apply
 σ ∘ ρ = map (apply σ) ρ
 
--- ann (Pair i []) (Sigma _ []) = Pair i []
--- ann (Pair i ((f,x):xs)) (Sigma _ ((f',t):ts))
---    | f == f', 
---      Pair _ xs' <- ann (pair xs) (subst0 x ∙ sigma ts) 
---    = Pair i ((f',ann x t):xs')
--- ann (Lam i a b) (Pi _ aa bb) = Lam i aa (ann b bb) -- FIXME: subst0 (var 0 `nna` a)
 ann x t = Ann x t
-         
 
 -- | Hereditary application
 app :: NF -> NF -> NF 
 app (Lam i _ bo) u = subst0 u ∙ bo
--- app (Pi  i _ bo) u = subst0 u ∙ bo
--- app (Box i t e) u = Box i (t `app` u) (e `app` u) -- FIXME: subst only if type-checks
 app n            u = App n u
 
 -- | Hereditary projection
 proj :: NF -> String -> NF
 proj (Pair _ fs) f | Just x <- lookup f fs = x
--- proj box@(Box i (Sigma _ fs) e) f | Just pt <- projType e f fs = Box i pt t (e `proj` f)
 proj x k = Proj x k 
 
 
 cas :: NF -> [(String,NF)] -> NF
--- FIXME: box case
 cas (Tag t) cs | Just x <- lookup t cs = x
 cas x cs = Cas x cs
-
--- | Weakening
-wkn :: Int -> Subst
-wkn n = map var [n..]
-
-wk = wkn 1
-
--- | Inverse of weakening
-str = subst0 (hole "str: oops!")
 
 -----------------------------------
 -- Display
@@ -147,7 +133,7 @@ freeVars (Star _ _) = mempty
 freeVars (Hole _ _) = mempty
 freeVars (Pair _ xs) = concatMap (freeVars . snd) xs
 freeVars (Proj x _) = freeVars x
-freeVars (Box _ t e) = freeVars t <> dec (freeVars e)
+freeVars (Box _ t e env) = freeVars t <> concat [freeVars (env!!x) | x <- dec (freeVars e)]
 freeVars (Ann x t) = freeVars x <> freeVars t
 freeVars (Fin _) = []
 freeVars (Tag _) = []
@@ -174,15 +160,18 @@ cPrint p ii t@(Pi _ _ _)    = parensIf (p > 1) (printBinders "→" ii mempty $ n
 cPrint p ii t@(Sigma _ _) = parensIf (p > 1) (printBinders "×" ii mempty $ nestedSigmas t)
 cPrint p ii (t@(Lam _ _ _)) = parensIf (p > 1) (nestedLams ii mempty t)
 cPrint p ii (Pair _ fs) = parensIf (p > (-1)) (sep (punctuate comma [text name <+> text "=" <+> cPrint 0 ii x | (name,x) <- fs ]))
-cPrint p ii (Box x t e) = "<" <> pretty i <> ":" <> cPrint 0 ii t <> ">" <> cPrint 2 (i <| ii) e
+cPrint p ii (Box x t e env) = "<" <> pretty i <> nv 
+--                              <> ":" <> cPrint 0 ii t
+                              <> ">"
         where i = allocName ii x
-{-                          {- cPrint 100 (i <| ii) t <> -} "[" <> sep (punctuate ";" (dispEnv ii [(ii `index` f,g!!f) | f <- dec (freeVars t)])) <> "]" -}
+              nv = "[" <> sep (punctuate ";" (dispEnv ii [(f,env!!f) | f <- dec (freeVars t)])) <> "]"
 cPrint p ii (Ann x t) = parensIf (p > 0) (cPrint 0 ii x <+> ":" <+> cPrint 0 ii t)
 cPrint p ii (Fin ts) = "[" <> sep (punctuate comma (map text ts)) <> "]"
 cPrint p ii (Tag t) = "'" <> text t
 cPrint p ii (Cas x cs) = "case" <+> cPrint 0 ii x <+> "of {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
 
-dispEnv :: DisplayContext -> [(Ident,NF)] -> [Doc]
+-- FIXME: should remember the variable names in the substitution
+dispEnv :: DisplayContext -> [(Int,NF)] -> [Doc]
 dispEnv ii g = [pretty i <> "↦" <> cPrint 0 ii v | (i,v) <- g]
 
 nestedPis  :: NF -> ([(Ident,Bool,NF)], NF)
