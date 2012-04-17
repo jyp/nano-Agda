@@ -1,21 +1,16 @@
-<m: {Bool : *
-    ;Or : * -> * -> *
-    ;TT : *
-    ;Nat : *
+<m: {Nat : *
     ;zero : Nat
     ;succ : Nat -> Nat
-    ;plus : Nat -> Nat -> Nat
+--     ;plus : Nat -> Nat -> Nat
 }> 
-(Bool = [true,false]
-,Or = \ (A:*) (B:*) -> {t : m.Bool : *; v : case t of 
-      {true = A,
-      false = B} : * }
-,TT = [tt]
-,Nat = m.Or m.TT m.Nat
-,zero = (t = 'true, v = 'tt)
-,succ = \n -> (t = 'false, v = n)
-,plus = \o n -> case o.t of{
-                  true = n,
-                  false = m.succ (m.plus o.v n)
-                }
+(Nat = { t : [zer,suc]; 
+         v : case t of {
+                zer = [tt],
+                suc = m.Nat} : *}
+,zero = (t = 'zer, v = 'tt)
+,succ = \(n : ?N) -> (t = 'suc, v = n)
+-- ,plus = \o n -> case o.t of{
+--                    true = n,
+--                    false = m.succ (m.plus o.v n)
+--                  }
 )

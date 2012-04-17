@@ -168,7 +168,7 @@ cType g e v = do
   unify g e v' v
   return e'
 
--- | Unification with subtyping
+-- | Subtyping test
 unify :: Context -> Term -> Type -> Type -> Result ()
 unify g0 e q0' q0 = unif g0 q0' q0 where 
    unif :: Context -> Type -> Type -> Result ()
@@ -189,29 +189,32 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
      (_, Hole _ _) -> constraint
      (Box _ t e , Box _ t' e') -> t <: t' >> e <: e'
      (Tag t  , Tag t') -> check $ t == t'
-     (Fin ts , Fin ts') -> check $ ts == ts'
+     (Fin ts , Fin ts') -> check $ all (`elem` ts') ts
      (Cas x xs , Cas x' xs') -> x <: x' >> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
      _ | isBox q' -> do
        x' <- open g q' 
        x' <: q
-     (Ann x _ , x') -> x <: x'
+     _ | isBox q -> do
+       x <- open g q 
+       x <: q'
+     (Ann x _ , x') -> x <: x' -- FIXME: annotations should not be found in NFs; remove this.
      (x , Ann x' _) -> x <: x'
      _  -> crash
      where (<:) :: Type -> Type -> Result ()
            (<:) = unif g
            infix 4 <:
-           constraint = report $ vcat ["constraint: " <> display g q',
-                                       "subtype of: " <> display g q]
+           constraint = report $ vcat (["constraint: " <> display g q',
+                                        "subtype of: " <> display g q] ++ chkCtx)
            check :: Bool -> Result () 
            check c = unless c crash 
            crash :: Result ()
            crash = throwError (e,hang "type mismatch: " 2 $ vcat 
-                               ["type:         " <+> display g q',
-                                "is not sub of:" <+> display g q,
-                                "inferred:" <+> display g0 q0',
-                                "expected:" <+> display g0 q0 ,
-                                "for:" <+> display g0 e ,
-                                "context:" <+> dispContext g0])
+                               (["type:         " <+> display g q',
+                                 "is not sub of:" <+> display g q] ++ chkCtx))
+           chkCtx = ["inferred:" <+> display g0 q0',
+                     "expected:" <+> display g0 q0 ,
+                     "for:" <+> display g0 e ,
+                     "context:" <+> dispContext g0]
            eqList p [] [] = return ()
            eqList p (x:xs) (x':xs') = p x x' >> eqList p xs xs'
            eqList p _ _ = crash
@@ -221,7 +224,9 @@ uncheckedOpen x = x
 
 open g box = case evaluate box of
                Just (o,t) -> do
-                 report ("opening" <+> display g box <+> " to " <> display g o) 
+                 report (hang "opening:" 2 $ sep ["box:" <+> display g box, 
+                                                  "in: " <+> display g o,
+                                                  "typ:" <+> display g t]) 
                  cType g o t 
                _ -> return box
 
@@ -236,7 +241,7 @@ isBox = isJust . evaluate
 evaluate :: Term -> Maybe (Term,Type)
 evaluate box@(Box _ t e) = return (subst0 box ∙ e,t)
 evaluate (Proj x f) | Just (x',Sigma _ fs) <- evaluate x, Just tt <- projType x' f fs = Just (proj x' f, tt)
--- evaluate (App f x) | Just = (`app` x) <$> evaluate f 
+evaluate (App f x) | Just (f',Pi _ _ b) <- evaluate f = Just (f' `app` x, subst0 x ∙ b)
 -- evaluate (Cas x cs) = (`cas` cs) <$> evaluate x 
 -- FIXME: do it.
 evaluate _ = Nothing
