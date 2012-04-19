@@ -3,10 +3,11 @@
     ;succ : Nat -> Nat
 --     ;plus : Nat -> Nat -> Nat
 }> 
+split m into Nat,zero,succ in
 (Nat = { t : [zer,suc]; 
          v : case t of {
                 zer = [tt],
-                suc = m.Nat} : *}
+                suc = Nat} : *}
 ,zero = (t = 'zer, v = 'tt)
 ,succ = \(n : ?N) -> (t = 'suc, v = n)
 -- ,plus = \o n -> case o.t of{

@@ -10,11 +10,11 @@ comment "{-" "-}" ;
 
 ETag.    Exp6 ::= "'" AIdent;
 EFin.    Exp6 ::= "[" [AIdent] "]";
-ECas.   Exp6 ::= "case" Exp "of" "{" [Defin] "}" ;
+ECas.    Exp6 ::= "case" Exp "of" "{" [Defin] "}" ;
 EHole.   Exp6 ::= Hole ;
 EVar.    Exp6 ::= AIdent ;
 ESet.    Exp6 ::= Sort ;
-EProj.   Exp4 ::= Exp4 "." AIdent ;
+ESplit.  Exp4 ::= "split" Exp "into" [AIdent] "in" Exp3 ;
 EApp.    Exp3 ::= Exp3 Exp4 ;
 EPi.     Exp2  ::= Exp3 Arrow Exp2 ;
 ESigma.  Exp2  ::= "{" [Exp] "}" ;

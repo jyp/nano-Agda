@@ -36,6 +36,10 @@ look (ident@(Identifier (position,x))) = do
 insertVar :: Identifier -> LocalEnv -> LocalEnv
 insertVar (Identifier (_pos,x)) e = x:e
 
+insertVars :: [Identifier]-> LocalEnv -> LocalEnv
+insertVars [] = id
+insertVars (x:xs) = insertVars xs . insertVar x
+
 dummyVar :: Identifier
 dummyVar = Identifier ((0,0),"_")
 
@@ -59,8 +63,10 @@ resolveTerm (A.EHole (A.Hole (p,x))) = return $ Hole p x
 resolveTerm (A.EVar (A.AIdent x)) = look x
 resolveTerm (A.ESet (A.Sort (p,"#"))) = return $ Star p $ Sort (-1)
 resolveTerm (A.ESet (A.Sort (p,'*':s))) = return $ Star p $ Sort (read ('0':s))
-resolveTerm (A.EProj x (A.AIdent (Identifier (_,field)))) = Proj <$> resolveTerm x <*> pure field
-resolveTerm (A.EApp f x) = App <$> resolveTerm f <*> resolveTerm x
+resolveTerm (A.ESplit x idents c) = Split <$> resolveTerm x 
+                                          <*> pure [f | (A.AIdent (Identifier (_,f))) <- idents]
+                                          <*> local (insertVars [f | A.AIdent f <- idents]) (resolveTerm c)
+resolveTerm (A.EApp f x) = App <$> resolveTerm f <*> resolveTerm x <*> pure (var 0)
 resolveTerm (A.ESigma decls) = sigma <$> (resolveDecls =<< mapM decodeDecl decls)
 resolveTerm (A.EPi a arrow b) = do
   (vs,a') <- decodeDecl a

@@ -14,6 +14,8 @@ import Data.Sequence hiding (replicate,zip,reverse)
 import Data.Foldable (toList)
 import Normal 
 import Options
+import qualified Data.List as L
+import Data.Function
 
 instance Error (Term,Doc) where
   strMsg s = (hole "strMsg: panic!",text s)
@@ -35,7 +37,7 @@ data Bind     = Bind {entryIdent :: Ident,
 type Context  = Seq Bind
 
 display :: Context -> NF -> Doc
-display c = prettyTerm (fmap entryIdent c)
+display c = cPrint (-100) (fmap entryIdent c)
 
 dispContext :: Context -> Doc
 dispContext ctx = case viewl ctx of
@@ -86,26 +88,7 @@ iType g (Pair _ fs) = do
 iType g (Tag t) = return (Tag t,Fin [t])
 iType g (Fin ts) = return (Fin ts,star 0)
   
-iType g (App e1 e2) = do
-   (e1',et) <- iType g e1
-   et' <- open g et
-   case et' of
-     Pi _ ty ty' -> do 
-          v2 <- cType g e2 ty
-          return (app e1' v2, subst0 v2 ∙ ty') 
-     _             ->  throwError (e1,"type should be function:" <> display g et')
 
-iType g (Proj e f) = do
-  (e',et) <- iType g e
-  et' <- open g et
-  case et' of 
-    Sigma _ fs -> case projType e f fs of
-                    Just tt -> return (proj e f,tt)
-                    _ -> throwError (e,"field" <+> text f <+> "not found in type" <+> display g et')
-    _ -> throwError (e,hang "expected record:" 2 $ sep ["term:" <+> display g e,
-                                                        "type:" <+> display g et',
-                                                        "field:" <+> text f])
-    
 iType g (Box n t e env) = do
   (t',_) <- iSort g t
   return (Box n t' e env,t')
@@ -159,7 +142,29 @@ cType g (Cas c cs) t = do
      v' <- cType g v t
      return (p,v')
   return (cas c' cs')
+
+cType g (App e1 e2 c) ct = do
+   (e1',et) <- iType g e1
+   et' <- open g et
+   case et' of
+     Pi i ty ty' -> do 
+          v2 <- cType g e2 ty
+          App e1' v2 <$> cType (Bind i (subst0 v2 ∙ ty') <| g) c ct
+     _             ->  throwError (e1,"type should be function:" <> display g et')
+
+
+cType g (Split e fs' c) ct = do
+  let fsText = sep $ punctuate ";" (map text fs')
+  (e',et) <- iType g e
+  et' <- open g et
+  case et' of 
+    Sigma _ fs | fs' `L.isPrefixOf` map fst fs -> 
+      Split e' fs' <$> cType (fromList [Bind (synthId i) t | (i,t) <- reverse $ L.take (L.length fs') fs] <> g) c ct
+    _ -> throwError (e,hang "expected record:" 2 $ sep ["term:" <+> display g e,
+                                                        "type:" <+> display g et',
+                                                        "fields:" <+> fsText])
   
+
 cType g e box | isBox box = cType g e =<< open g box
 
 cType g e v = do 
@@ -176,14 +181,14 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
      (Star _ s , Star _ s') -> check $ s == s'
      (Pi i a b , Pi _ a' b') -> (a' <: a) >> unif (Bind i a <| g) b b'
      (Lam i a b , Lam _ a' b') -> (a' <: a) >> unif (Bind i a <| g) b b'
-     (App a b , App a' b') -> (a <: a') >> (b <: b')
+     (App a b c, App a' b' c') -> (a <: a') >> (b <: b') >> (c <: c')
      (Sigma _ xs, Sigma _ []) -> return ()    
      (Sigma _ ((f,x):xs) , Sigma _ ((f',x'):xs')) -> do
            check $ f == f'
            x <: x'
            unif (Bind (synthId f) x' <| g) (sigma xs) (sigma xs')
      (Pair _ xs , Pair _ xs') -> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
-     (Proj x f , Proj x' f') -> x <: x' >> check (f == f')
+     (Split x f c , Split x' f' c') -> x <: x' >> check (f == f') >> (c <: c')
      (V _ x , V _ x') -> check (x == x')
      (Hole _ _, _) -> constraint
      (_, Hole _ _) -> constraint
@@ -223,25 +228,32 @@ uncheckedOpen box@(Box i t e _) = (subst0 box ∙ e) `ann` t
 uncheckedOpen x = x
 
 open g box = case evaluate box of
-               Just (o,t) -> do
-                 report (hang "opening:" 2 $ sep ["box:" <+> display g box, 
-                                                  "in: " <+> display g o,
-                                                  "typ:" <+> display g t]) 
-                 cType g o t 
+               Just (o) -> do
+                 report (hang "opening:" 2 $ sep ["box:" <+> display g box
+                                                 ,"in: " <+> display g o
+                                                 -- "typ:" <+> display g t
+                                                 ]) 
+                 -- cType g o t FIXME: typecheck & normalise 
+                 return o
                _ -> return box
 
+{-
+proj e h = split e [h] (var 0) -- FIXME: totally wrong: variables in the context will be the other projections.
 
 projType e f fs = case break ((==f) . fst) fs of
                     (hs,((_,t):_)) -> Just (([proj e h | (h,_) <- reverse hs] ++ map var [0..]) ∙ t)
                     _ -> Nothing
-
+projTypes e fs fs' = case fs of
+                       [] -> Just []
+                       (x:xs) -> (:) <$> projType e x fs' <*> projTypes e xs fs'
+-}
 
 isBox = isJust . evaluate
 
-evaluate :: Term -> Maybe (Term,Type)
-evaluate box@(Box _ t e env) = return ((box : wk ∘ env) ∙ e,t)
-evaluate (Proj x f) | Just (x',Sigma _ fs) <- evaluate x, Just tt <- projType x' f fs = Just (proj x' f, tt)
-evaluate (App f x) | Just (f',Pi _ _ b) <- evaluate f = Just (f' `app` x, subst0 x ∙ b)
+evaluate :: Term -> Maybe Term
+evaluate box@(Box _ t e env) = return ((box : env) ∙ e)
+evaluate (Split x fs c) | Just x' <- evaluate x = return $ split x' fs c
+evaluate (App f x c) | Just f' <- evaluate f = return $ app f' x c
 -- evaluate (Cas x cs) = (`cas` cs) <$> evaluate x 
 -- FIXME: do it.
 evaluate _ = Nothing
