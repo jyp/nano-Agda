@@ -10,7 +10,7 @@ comment "{-" "-}" ;
 
 ETag.    Exp6 ::= "'" AIdent;
 EFin.    Exp6 ::= "[" [AIdent] "]";
-ECas.   Exp6 ::= "case" Exp "of" "{" [Defin] "}" ;
+ECas.    Exp6 ::= "case" "{" [Defin] "}" ;
 EHole.   Exp6 ::= Hole ;
 EVar.    Exp6 ::= AIdent ;
 ESet.    Exp6 ::= Sort ;

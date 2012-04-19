@@ -1,16 +1,22 @@
 <m: {Nat : *
+    ;FNat : [zer,suc] -> *
     ;zero : Nat
     ;succ : Nat -> Nat
---     ;plus : Nat -> Nat -> Nat
+    ;plus : Nat -> Nat -> Nat
 }> 
-(Nat = { t : [zer,suc]; 
-         v : case t of {
+(
+Nat = { t : [zer,suc]; 
+         v : (case {
                 zer = [tt],
-                suc = m.Nat} : *}
+                suc = m.Nat} 
+             : [zer,suc] -> *) t}
+,FNat = case { zer = [tt],
+               suc = m.Nat} : [zer,suc] -> *
 ,zero = (t = 'zer, v = 'tt)
-,succ = \(n : ?N) -> (t = 'suc, v = n)
--- ,plus = \o n -> case o.t of{
---                    true = n,
---                    false = m.succ (m.plus o.v n)
---                  }
+,succ = \ (n : ?N) -> (t = 'suc, v = n)
+,plus = \n o -> (case {
+                      zer = \q -> n,
+                      suc = \q -> m.succ (m.plus q n)
+                    }
+                 : (p : [zer,suc]) -> m.FNat p -> m.Nat) o.t o.v
 )

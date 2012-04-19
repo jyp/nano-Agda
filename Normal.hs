@@ -25,7 +25,7 @@ data Term :: * where
               
      Fin :: [String] -> NF
      Tag :: String -> NF
-     Cas :: Neutral -> [(String, NF)] -> Neutral
+     Cas :: [(String, NF)] -> NF
 
      V :: Position -> Int ->  -- ^ deBruijn index 
           Neutral
@@ -47,12 +47,8 @@ termPosition t = case t of
    (App x y) -> s x
    (Proj x _) -> s x
    (Ann x _) -> s x 
-   (Cas c _) -> termPosition c
    _ -> dummyPosition
   where s = termPosition
-
-
-
 
 type Subst = [NF]
 
@@ -63,6 +59,7 @@ sigma = Sigma dummyPosition
 pair = Pair dummyPosition
 tag = Tag
 fin = Fin
+cas = Cas
 
 identity = map var [0..]
 
@@ -91,7 +88,7 @@ apply f t = case t of
   Box n t e g -> Box n (s t) (s' e) (map s g)
   Ann x t -> ann (s x) (s t)
   
-  Cas x cs -> cas (s x) (map (second s) cs)
+  Cas cs -> cas (map (second s) cs)
   Fin x -> Fin x
   Tag x -> Tag x
  where s' = apply (var 0 : wk ∘ f)
@@ -105,17 +102,13 @@ ann x t = Ann x t
 -- | Hereditary application
 app :: NF -> NF -> NF 
 app (Lam i _ bo) u = subst0 u ∙ bo
+app (Cas cs)     (Tag t) | Just x <- lookup t cs = x
 app n            u = App n u
 
 -- | Hereditary projection
 proj :: NF -> String -> NF
 proj (Pair _ fs) f | Just x <- lookup f fs = x
 proj x k = Proj x k 
-
-
-cas :: NF -> [(String,NF)] -> NF
-cas (Tag t) cs | Just x <- lookup t cs = x
-cas x cs = Cas x cs
 
 -----------------------------------
 -- Display
@@ -137,7 +130,7 @@ freeVars (Box _ t e env) = freeVars t <> concat [freeVars (env!!x) | x <- dec (f
 freeVars (Ann x t) = freeVars x <> freeVars t
 freeVars (Fin _) = []
 freeVars (Tag _) = []
-freeVars (Cas t cs) = freeVars t <> concatMap (freeVars . snd) cs
+freeVars (Cas cs) = concatMap (freeVars . snd) cs
 
 iOccursIn :: Int -> Term -> Bool
 iOccursIn x t = x `elem` (freeVars t)
@@ -168,7 +161,7 @@ cPrint p ii (Box x t e env) = "<" <> pretty i <> nv
 cPrint p ii (Ann x t) = parensIf (p > 0) (cPrint 0 ii x <+> ":" <+> cPrint 0 ii t)
 cPrint p ii (Fin ts) = "[" <> sep (punctuate comma (map text ts)) <> "]"
 cPrint p ii (Tag t) = "'" <> text t
-cPrint p ii (Cas x cs) = "case" <+> cPrint 0 ii x <+> "of {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
+cPrint p ii (Cas cs) = "case {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
 
 -- FIXME: should remember the variable names in the substitution
 dispEnv :: DisplayContext -> [(Int,NF)] -> [Doc]

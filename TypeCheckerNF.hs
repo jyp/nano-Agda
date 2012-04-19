@@ -152,13 +152,14 @@ cType g (Pair _ ((f,x):xs)) (Sigma i fs@((f',xt):xts))
     Pair _ xs' <- cType g (pair xs) (subst0 x' ∙ sigma xts)
     return (pair ((f,x'):xs'))
 
-cType g (Cas c cs) t = do
+cType g c@(Cas cs) (Pi _ (Fin ct') vt) = do
   let ct = Fin $ map fst cs
-  c' <- cType g c ct
+  unify (Bind dummyId ct <| g) (var 0) (Fin ct') ct
   cs' <- forM cs $ \ (p,v) -> do
-     v' <- cType g v t
+     unless (p `elem` ct') $ throwError (v,"tag not found: " <> text p)
+     v' <- cType g v (subst0 (Tag p) ∙ vt)
      return (p,v')
-  return (cas c' cs')
+  return (cas cs')
   
 cType g e box | isBox box = cType g e =<< open g box
 
@@ -190,7 +191,7 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
      (Box n t e env, Box n' t' e' env') -> check (n == n') >> sequence_ [env!!v <: env'!!v | v <- dec (freeVars e)]
      (Tag t  , Tag t') -> check $ t == t'
      (Fin ts , Fin ts') -> check $ all (`elem` ts') ts
-     (Cas x xs , Cas x' xs') -> x <: x' >> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
+     (Cas xs , Cas xs') -> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
      _ | isBox q' -> do
        x' <- open g q' 
        x' <: q
@@ -242,6 +243,4 @@ evaluate :: Term -> Maybe (Term,Type)
 evaluate box@(Box _ t e env) = return ((box : wk ∘ env) ∙ e,t)
 evaluate (Proj x f) | Just (x',Sigma _ fs) <- evaluate x, Just tt <- projType x' f fs = Just (proj x' f, tt)
 evaluate (App f x) | Just (f',Pi _ _ b) <- evaluate f = Just (f' `app` x, subst0 x ∙ b)
--- evaluate (Cas x cs) = (`cas` cs) <$> evaluate x 
--- FIXME: do it.
 evaluate _ = Nothing
