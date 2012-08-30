@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
 module Basics
-       (module Data.Monoid, (<>),
+       (module Monoid,
         module Control.Applicative,
         Irr(..), 
         Sort(..),
@@ -14,12 +14,9 @@ import Display
 import qualified RawSyntax as A
 import RawSyntax (Identifier(..))
 import Control.Applicative
-import Data.Monoid
+import Monoid
 import Data.Sequence (Seq)
 
-
-(<>) :: Monoid a => a -> a -> a
-(<>) = mappend
 
 -----------
 -- Irr
