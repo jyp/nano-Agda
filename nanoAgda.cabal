@@ -28,6 +28,7 @@ executable nanoAgda
      Basics
      Display
      Main
+     Monoid
      Normal
      Options
      RawSyntax
@@ -35,11 +36,11 @@ executable nanoAgda
      TypeCheckerNF
 
   build-depends: base==4.*
-  build-depends: cmdargs==0.8.*
+  build-depends: cmdargs >= 0.8  && < 1
   build-depends: containers==0.4.*
   build-depends: pretty==1.1.*
-  build-depends: parsec==2.1.*
+  build-depends: parsec >= 2.1 && < 3.2
   build-depends: BNFC-meta==0.3.*
-  build-depends: transformers == 0.2.*
-  build-depends: mtl == 2.0.*
+  build-depends: transformers >= 0.2 && < 0.4
+  build-depends: mtl >= 2.0 && < 2.2
   
