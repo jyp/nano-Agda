@@ -42,4 +42,6 @@ executable nanoAgda
   build-depends: BNFC-meta==0.3.*
   build-depends: transformers >= 0.2 && < 0.4
   build-depends: mtl >= 2.0 && < 2.2
-  
+  build-depends: filepath==1.3.*
+  build-depends: directory==1.1.*
+
