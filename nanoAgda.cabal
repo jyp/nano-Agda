@@ -1,5 +1,5 @@
 name:           nanoAgda
-version:        1.0.0
+version:        1.0.0.1
 category:       Dependent Types
 synopsis:       A toy dependently-typed language
 description:
@@ -16,7 +16,7 @@ license-file:   LICENSE
 author:         Jean-Philippe Bernardy
 maintainer:     jeanphilippe.bernardy@gmail.com
 Cabal-Version:  >= 1.8
-tested-with:    GHC==7.2.2
+tested-with:    GHC==7.4.1
 build-type:     Simple
 
 executable nanoAgda
@@ -37,7 +37,7 @@ executable nanoAgda
 
   build-depends: base==4.*
   build-depends: cmdargs >= 0.8  && < 1
-  build-depends: containers==0.4.*
+  build-depends: containers>=0.4 && < 0.6
   build-depends: pretty==1.1.*
   build-depends: parsec >= 2.1 && < 3.2
   build-depends: BNFC-meta==0.3.*
