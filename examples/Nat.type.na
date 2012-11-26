@@ -1,0 +1,7 @@
+
+{Nat : *
+;FNat : [zer,suc] -> *
+;zero : Nat
+;succ : Nat -> Nat
+;plus : Nat -> Nat -> Nat
+}

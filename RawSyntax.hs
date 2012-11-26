@@ -19,7 +19,7 @@ EApp.    Exp3 ::= Exp3 Exp4 ;
 EPi.     Exp2  ::= Exp3 Arrow Exp2 ;
 ESigma.  Exp2  ::= "{" [Exp] "}" ;
 EAbs.    Exp2  ::= "\\" [Bind] Arrow Exp2 ;
-EBox.    Exp2  ::= "<" AIdent ":" Exp ">" Exp2 ;
+EThis.   Exp6  ::= "this" ;
 EAnn.    Exp1 ::= Exp2 ":" Exp1 ;
 EPair.   Exp  ::= [Defin] ;
 

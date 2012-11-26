@@ -6,7 +6,7 @@ import Basics
 import Display
 import Data.Foldable
 import Control.Arrow (first, second)
-import Data.Sequence hiding (zip,replicate,reverse)
+import Data.Sequence 
 import Options
 
 type NF = Term
@@ -31,7 +31,7 @@ data Term :: * where
           Neutral
      Hole :: Position -> String -> Neutral
      
-     Box :: Ident -> NF -> Term -> Subst -> NF
+     This :: NF -- ^ reference to the module currently type-checked
      -- | type annotation     
      Ann :: Neutral -> NF -> NF 
   deriving (Show)
@@ -85,7 +85,7 @@ apply f t = case t of
   (Proj x k) -> proj (s x) k 
   Hole p x -> Hole p x
   V _ x -> f !! x
-  Box n t e g -> Box n (s t) (s' e) (map s g)
+  This -> This
   Ann x t -> ann (s x) (s t)
   
   Cas cs -> cas (map (second s) cs)
@@ -99,13 +99,13 @@ apply f t = case t of
 
 ann x t = Ann x t
 
--- | Hereditary application
+-- | Application that computes
 app :: NF -> NF -> NF 
 app (Lam i _ bo) u = subst0 u ∙ bo
 app (Cas cs)     (Tag t) | Just x <- lookup t cs = x
 app n            u = App n u
 
--- | Hereditary projection
+-- | Projection that computes
 proj :: NF -> String -> NF
 proj (Pair _ fs) f | Just x <- lookup f fs = x
 proj x k = Proj x k 
@@ -126,7 +126,7 @@ freeVars (Star _ _) = mempty
 freeVars (Hole _ _) = mempty
 freeVars (Pair _ xs) = concatMap (freeVars . snd) xs
 freeVars (Proj x _) = freeVars x
-freeVars (Box _ t e env) = freeVars t <> concat [freeVars (env!!x) | x <- dec (freeVars e)]
+freeVars This = []
 freeVars (Ann x t) = freeVars x <> freeVars t
 freeVars (Fin _) = []
 freeVars (Tag _) = []
@@ -144,7 +144,7 @@ cPrint :: Int -> DisplayContext -> Term -> Doc
 cPrint p ii (Hole _ x) = text x
 cPrint p ii (Star _ i) = pretty i
 cPrint p ii (V _ k) 
-  | k < 0 || k >= length ii  = text "<global " <+> pretty (k - length ii) <> ">"
+  | k < 0 || k >= length ii  = text "<global " <> pretty (k - length ii) <> ">"
   | otherwise = pretty (ii `index` k) 
 cPrint p ii (Proj x f)      = cPrint p ii x <> "." <> text f 
 cPrint p ii t@(App _ _)     = let (fct,args) = nestedApp t in 
@@ -153,11 +153,7 @@ cPrint p ii t@(Pi _ _ _)    = parensIf (p > 1) (printBinders "→" ii mempty $ n
 cPrint p ii t@(Sigma _ _) = parensIf (p > 1) (printBinders "×" ii mempty $ nestedSigmas t)
 cPrint p ii (t@(Lam _ _ _)) = parensIf (p > 1) (nestedLams ii mempty t)
 cPrint p ii (Pair _ fs) = parensIf (p > (-1)) (sep (punctuate comma [text name <+> text "=" <+> cPrint 0 ii x | (name,x) <- fs ]))
-cPrint p ii (Box x t e env) = "<" <> pretty i <> nv 
---                              <> ":" <> cPrint 0 ii t
-                              <> ">"
-        where i = allocName ii x
-              nv = "[" <> sep (punctuate ";" (dispEnv ii [(f,env!!f) | f <- dec (freeVars t)])) <> "]"
+cPrint p ii This = "this" 
 cPrint p ii (Ann x t) = parensIf (p > 0) (cPrint 0 ii x <+> ":" <+> cPrint 0 ii t)
 cPrint p ii (Fin ts) = "[" <> sep (punctuate comma (map text ts)) <> "]"
 cPrint p ii (Tag t) = "'" <> text t
@@ -184,7 +180,7 @@ printBinders _ ii xs ([],b)                 = sep $ toList $ (xs |> cPrint 1 ii 
 nestedLams :: DisplayContext -> Seq Doc -> Term -> Doc
 nestedLams ii xs (Lam x ty c) = nestedLams (i <| ii) (xs |> parens (pretty i <+> ":" <+> cPrint 0 ii ty)) c
                                   where i = allocName ii x
-nestedLams ii xs t         = (text "\\ " <> (sep $ toList $ (xs |> "->")) <+> nest 3 (cPrint 0 ii t))
+nestedLams ii xs t         = (text "\\ " <> (sep $ toList $ (xs |> "->")) <> " " <> nest 3 (cPrint 0 ii t))
 
 printBind' ii name occurs d = case not (isDummyId name) || occurs of
                   True -> parens (pretty name <+> ":" <+> cPrint 0 ii d)

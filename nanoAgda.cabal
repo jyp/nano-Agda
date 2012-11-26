@@ -28,7 +28,6 @@ executable nanoAgda
      Basics
      Display
      Main
-     Monoid
      Normal
      Options
      RawSyntax

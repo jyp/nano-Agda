@@ -31,7 +31,7 @@ putStrV :: Verbosity -> Doc -> Checker ()
 putStrV v s = if verb options >= v then liftIO $ putStrLn (render s) else return ()
 
 -- | The file containing the type of the term contained in file @f@
-typeFile = replaceExtension "type.na"
+typeFile f = replaceExtension f "type.na"
 
 runFile :: FilePath -> Checker Value
 runFile f = do
@@ -55,29 +55,33 @@ run s fname = let ts = myLLexer s in case pExp ts of
 getType :: FilePath -> Checker Value
 getType fname = do
   let t = typeFile fname
+  putStrV 10 $ "typeFile = " <> text t
   ex <- liftIO $ doesFileExist t
-  if ex then runFile t else return (Star dummyPosition 1)
+  if ex  
+    then do putStrV 2 $ "Using type from file: " <> text t
+            runFile t 
+    else do putStrV 2 "Using default type" 
+            return (Star dummyPosition 1)
 
 process :: FilePath -> Exp -> Checker Value
 process fname modul = do
   typ <- getType fname
   let resolved = runResolver $ resolveTerm modul
-  let opened = uncheckedOpen resolved
-  putStrV 3 $ "[Opened to]" $$ pretty opened
   putStrV 4 $ "[Resolved into]" $$ pretty resolved
-  let (checked,info) = runChecker $ (cType mempty opened typ)
+  let (checked,info) = runChecker (resolved,typ) $ cType mempty resolved typ
   mapM (putStrV 0) info  -- display constraints, etc.
   case checked of
     Right a -> do 
        putStrV 0 $ "nf =" <+> pretty a
        return a
     Left (e,err) -> do let (line,col) = termPosition e 
-                       throwError $ (text fname <> ":" <> pretty line <> ":" <> pretty (col - 1) <> ":" <+> err)
+                       throwError $ (text fname <> ":" <> pretty line <> ":" <> pretty (col - 1) <> ": " <> err)
                        
       
 main :: IO ()
 main = do 
   results <- forM (files options) $ \f -> runErrorT $ runFile f
-  let oks = lefts results
+  let (errs,oks) = partitionEithers results
+  mapM (putStrLn . render) errs               
   putStrLn $ show (length oks) ++ "/" ++ show (length results) ++ " files typecheck."
 
