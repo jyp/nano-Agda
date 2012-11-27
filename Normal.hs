@@ -12,6 +12,7 @@ import Options
 type NF = Term
 type Neutral = Term
 
+-- | Representation of terms.
 data Term :: * where
      Star :: Position -> Sort -> NF
      
@@ -20,7 +21,7 @@ data Term :: * where
      App :: Neutral -> NF -> Neutral
      
      Sigma  :: Position -> [(String,NF)] -> NF 
-     Pair   :: Position -> [(String,NF)] -> NF -- Note: Unlike Sigma, Pair do not bind variables
+     Pair   :: Position -> [(String,NF)] -> NF -- Note: Unlike Sigma, Pairs do not bind variables
      Proj   :: Neutral -> String -> Neutral      
               
      Fin :: [String] -> NF
@@ -32,8 +33,8 @@ data Term :: * where
      Hole :: Position -> String -> Neutral
      
      This :: NF -- ^ reference to the module currently type-checked
-     -- | type annotation     
-     Ann :: Neutral -> NF -> NF 
+  
+     Ann :: Neutral -> NF -> NF -- ^ type annotation     
   deriving (Show)
 
 termPosition t = case t of
@@ -61,6 +62,7 @@ tag = Tag
 fin = Fin
 cas = Cas
 
+-- | The identity substitution
 identity = map var [0..]
 
 subst0 :: NF -> Subst
@@ -191,7 +193,6 @@ nestedApp (App f a) = (second (++ [a])) (nestedApp f)
 nestedApp t = (t,[])
 
 prettyTerm = cPrint (-100)
-
 
 instance Pretty Term where
     pretty = prettyTerm mempty

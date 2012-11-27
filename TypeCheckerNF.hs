@@ -34,7 +34,7 @@ runChecker x (Result m) = runIdentity $ runWriterT $ runErrorT $ runReaderT m x
 type Value    = NF
 type Type     = Value
 data Bind     = Bind {entryIdent :: Ident, 
-                      entryType :: Type   -- ^ Attention: context of the type does not contain the variable bound here.
+                      entryType :: Type   -- ^ Note: the context of the type does not contain the variable bound here.
                      }
 type Context  = Seq Bind
 
@@ -92,7 +92,7 @@ iType g (Fin ts) = return (Fin ts,star 0)
   
 iType g (App e1 e2) = do
    (e1',et) <- iType g e1
-   et' <- wknf g et
+   et' <- whnf g et
    case et' of
      Pi _ ty ty' -> do 
           v2 <- cType g e2 ty
@@ -101,7 +101,7 @@ iType g (App e1 e2) = do
 
 iType g (Proj e f) = do
   (e',et) <- iType g e
-  et' <- wknf g et
+  et' <- whnf g et
   case et' of 
     Sigma _ fs -> case projType e f fs of
                     Just tt -> return (proj e f,tt)
@@ -120,7 +120,7 @@ iType g t = throwError (t,hang "cannot infer type for" 2 $ display g t)
 iSort :: Context -> Term -> Result (Type,Sort)
 iSort g e = do
   (val,v) <- iType g e
-  v' <- wknf g v
+  v' <- whnf g v
   case v' of 
     Star _ i -> return (val,i)
     Hole _ h -> do 
@@ -174,8 +174,8 @@ cType0 g e v = do
 unify :: Context -> Term -> Type -> Type -> Result ()
 unify g0 e q0' q0 = unif g0 q0' q0 where 
    unif, unif' :: Context -> Type -> Type -> Result ()
-   unif' g q' q = do x' <- wknf g q'
-                     x <- wknf g q
+   unif' g q' q = do x' <- whnf g q'
+                     x <- whnf g q
                      unif g x' x
    unif g q' q = case (q',q) of
      (Star _ s , Star _ s') -> check $ s == s'
@@ -196,8 +196,6 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
      (Tag t  , Tag t') -> check $ t == t'
      (Fin ts , Fin ts') -> check $ all (`elem` ts') ts
      (Cas xs , Cas xs') -> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
-     (Ann x _ , x') -> x <: x' -- FIXME: annotations should not be found in NFs; remove this.
-     (x , Ann x' _) -> x <: x'
      _ | isBox q || isBox q' -> unif' g q' q
      _  -> crash
      where (<:) :: Type -> Type -> Result ()
@@ -219,23 +217,26 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
            eqList p (x:xs) (x':xs') = p x x' >> eqList p xs xs'
            eqList p _ _ = crash
 
-cType g e t = cType0 g e =<< wknf g t
+cType g e t = cType0 g e =<< whnf g t
 
-wknf g x = do
-  -- report $ "wknf: " <> (display g x)
+-- | Reduce to whnf. May loop if 
+whnf g x = do
+  -- report $ "whnf: " <> (display g x)
   m <- fst <$> ask
-  case wknf' m x of 
+  case whnf' m x of 
     Nothing -> return x
-    Just x' -> wknf g x' -- TODO: consume some fuel
+    Just x' -> whnf g x' -- TODO: consume some fuel
 
-wknf' :: Term -> Term -> Maybe Term
-wknf' m This = Just m
-wknf' m (Proj x f) = proj <$> wknf' m x <*> pure f
-wknf' m (App  f x) = app  <$> wknf' m f <*> pure x
-wknf' m (Ann x t) = Just x
-wknf' _ x = Nothing
+-- | One step of reduction to whnf
+whnf' :: Term -> Term -> Maybe Term
+whnf' m This = Just m
+whnf' m (Proj x f) = proj <$> whnf' m x <*> pure f
+whnf' m (App  f x) = app  <$> whnf' m f <*> pure x
+whnf' m (Ann x t) = Just x
+whnf' _ x = Nothing
 
-isBox x = isJust (wknf' (hole "isBox: dummy") x)
+-- | Will the argument reduce at all if passed to whnf?
+isBox x = isJust (whnf' (hole "isBox: dummy") x)
 
 projType e f fs = case break ((==f) . fst) fs of
                     (hs,((_,t):_)) -> Just (([proj e h | (h,_) <- reverse hs] ++ map var [0..]) ∙ t)
