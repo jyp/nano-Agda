@@ -4,11 +4,11 @@ import Data.Either
 import System.IO ( stdin, hGetContents )
 import System.Environment ( getArgs )
 import Options 
-import Normal
+import Terms
 
 import RawSyntax
 import AbsSynToTerm
-import TypeCheckerNF
+import TypeChecker
 import Basics
 import Display
 import Text.PrettyPrint.HughesPJ (render)

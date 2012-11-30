@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, KindSignatures, OverloadedStrings, TypeSynonymInstances, RankNTypes, PatternGuards #-}
-module Normal where
+module Terms where
 
 import Prelude hiding (length,elem,foldl,all,concatMap,and,drop,concat)
 import Basics

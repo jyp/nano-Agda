@@ -1,6 +1,6 @@
 {-# LANGUAGE PackageImports, TypeSynonymInstances, FlexibleInstances, GADTs, TupleSections, GeneralizedNewtypeDeriving #-}
 
-module TypeCheckerNF where
+module TypeChecker where
 
 import Prelude hiding (length)
 import Basics
@@ -13,7 +13,7 @@ import Control.Monad.Reader
 import Data.Functor.Identity
 import Data.Sequence hiding (replicate,zip,reverse)
 import Data.Foldable (toList)
-import Normal 
+import Terms
 import Options
 
 instance Error (Term,Doc) where

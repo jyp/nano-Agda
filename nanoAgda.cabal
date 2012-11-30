@@ -1,5 +1,5 @@
 name:           nanoAgda
-version:        1.0.0.1
+version:        1.0.0.2
 category:       Dependent Types
 synopsis:       A toy dependently-typed language
 description:
@@ -24,14 +24,14 @@ executable nanoAgda
   main-is: Main.hs
 
   other-modules:
-     AbsSynToTerm
+     Options
      Basics
      Display
-     Main
-     Normal
-     Options
      RawSyntax
-     TypeCheckerNF
+     AbsSynToTerm
+     Terms
+     TypeChecker
+     Main
 
   build-depends: base==4.*
   build-depends: cmdargs >= 0.8  && < 1
@@ -42,5 +42,5 @@ executable nanoAgda
   build-depends: transformers >= 0.2 && < 0.4
   build-depends: mtl >= 2.0 && < 2.2
   build-depends: filepath==1.3.*
-  build-depends: directory==1.1.*
+  build-depends: directory>=1.1 && <1.3
 

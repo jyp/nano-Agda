@@ -2,7 +2,7 @@
 
 module AbsSynToTerm where
 
-import Normal
+import Terms
 import qualified RawSyntax as A
 import RawSyntax (Identifier(..))
 import Control.Monad.Trans.State (runStateT, StateT)
