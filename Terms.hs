@@ -24,9 +24,9 @@ data Term :: * where
      Pair   :: Position -> [(String,NF)] -> NF -- Note: Unlike Sigma, Pairs do not bind variables
      Proj   :: Neutral -> String -> Neutral      
               
-     Fin :: [String] -> NF
-     Tag :: String -> NF
-     Cas :: [(String, NF)] -> NF
+     Fin :: Position -> [String] -> NF
+     Tag :: Position -> String -> NF
+     Cas :: Position -> [(String, NF)] -> NF
 
      V :: Position -> Int ->  -- ^ deBruijn index 
           Neutral
@@ -48,6 +48,9 @@ termPosition t = case t of
    (App x y) -> s x
    (Proj x _) -> s x
    (Ann x _) -> s x 
+   (Fin x _) -> x
+   (Tag x _) -> x
+   (Cas x _) -> x
    _ -> dummyPosition
   where s = termPosition
 
@@ -55,12 +58,6 @@ type Subst = [NF]
 
 var = V dummyPosition
 hole = Hole dummyPosition
-star = Star dummyPosition
-sigma = Sigma dummyPosition
-pair = Pair dummyPosition
-tag = Tag
-fin = Fin
-cas = Cas
 
 -- | The identity substitution
 identity = map var [0..]
@@ -82,7 +79,7 @@ apply f t = case t of
   Pair i fs -> Pair i (map (second s) fs)
   Pi i a b -> Pi i (s a) (s' b)
   Sigma i [] -> Sigma i []
-  Sigma i ((f,x):xs) -> let Sigma _ xs' = s' (sigma xs) in Sigma i ((f,s x):xs')
+  Sigma i ((f,x):xs) -> let Sigma _ xs' = s' (Sigma i xs) in Sigma i ((f,s x):xs')
   (App a b) -> app (s a) (s b)
   (Proj x k) -> proj (s x) k 
   Hole p x -> Hole p x
@@ -90,9 +87,9 @@ apply f t = case t of
   This -> This
   Ann x t -> ann (s x) (s t)
   
-  Cas cs -> cas (map (second s) cs)
-  Fin x -> Fin x
-  Tag x -> Tag x
+  Cas p cs -> Cas p (map (second s) cs)
+  Fin p x -> Fin p x
+  Tag p x -> Tag p x
  where s' = apply (var 0 : wk ∘ f)
        s  = apply f
 
@@ -104,7 +101,7 @@ ann x t = Ann x t
 -- | Application that computes
 app :: NF -> NF -> NF 
 app (Lam i _ bo) u = subst0 u ∙ bo
-app (Cas cs)     (Tag t) | Just x <- lookup t cs = x
+app (Cas _ cs) (Tag _ t) | Just x <- lookup t cs = x
 app n            u = App n u
 
 -- | Projection that computes
@@ -120,7 +117,7 @@ dec xs = [ x - 1 | x <- xs, x > 0]
 freeVars :: Term -> [Int]
 freeVars (Pi _ a b) = freeVars a <> (dec $ freeVars b)
 freeVars (Sigma _ []) = []
-freeVars (Sigma _ ((_,x):xs)) = freeVars x <> (dec $ freeVars (sigma xs))
+freeVars (Sigma p ((_,x):xs)) = freeVars x <> (dec $ freeVars (Sigma p xs))
 freeVars (V _ x) = [x]
 freeVars (App a b) = freeVars a <> freeVars b
 freeVars (Lam _ ty b) = freeVars ty <> (dec $ freeVars b)
@@ -130,9 +127,9 @@ freeVars (Pair _ xs) = concatMap (freeVars . snd) xs
 freeVars (Proj x _) = freeVars x
 freeVars This = []
 freeVars (Ann x t) = freeVars x <> freeVars t
-freeVars (Fin _) = []
-freeVars (Tag _) = []
-freeVars (Cas cs) = concatMap (freeVars . snd) cs
+freeVars (Fin _ _) = []
+freeVars (Tag _ _) = []
+freeVars (Cas _ cs) = concatMap (freeVars . snd) cs
 
 iOccursIn :: Int -> Term -> Bool
 iOccursIn x t = x `elem` (freeVars t)
@@ -157,9 +154,9 @@ cPrint p ii (t@(Lam _ _ _)) = parensIf (p > 1) (nestedLams ii mempty t)
 cPrint p ii (Pair _ fs) = parensIf (p > (-1)) (sep (punctuate comma [text name <+> text "=" <+> cPrint 0 ii x | (name,x) <- fs ]))
 cPrint p ii This = "this" 
 cPrint p ii (Ann x t) = parensIf (p > 0) (cPrint 0 ii x <+> ":" <+> cPrint 0 ii t)
-cPrint p ii (Fin ts) = "[" <> sep (punctuate comma (map text ts)) <> "]"
-cPrint p ii (Tag t) = "'" <> text t
-cPrint p ii (Cas cs) = "case {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
+cPrint p ii (Fin _ ts) = "[" <> sep (punctuate comma (map text ts)) <> "]"
+cPrint p ii (Tag _ t) = "'" <> text t
+cPrint p ii (Cas _ cs) = "case {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
 
 -- FIXME: should remember the variable names in the substitution
 dispEnv :: DisplayContext -> [(Int,NF)] -> [Doc]
@@ -170,8 +167,8 @@ nestedPis (Pi i a b) = (first ([(i,0 `iOccursIn` b,a)] ++)) (nestedPis b)
 nestedPis x = ([],x)
 
 nestedSigmas  :: NF -> ([(Ident,Bool,NF)], NF)
-nestedSigmas (Sigma _ ((i,x):xs)) = (first ([(synthId i,0 `iOccursIn` sigma xs,x)] ++)) (nestedSigmas (sigma xs))
-nestedSigmas (Sigma _ []) = ([],hole "⊤")
+nestedSigmas (Sigma p ((i,x):xs)) = (first ([(synthId i,0 `iOccursIn` Sigma p xs,x)] ++)) (nestedSigmas (Sigma p xs))
+nestedSigmas (Sigma p []) = ([],Hole p "⊤")
 
 printBinders :: Doc -> DisplayContext -> Seq Doc -> ([(Ident,Bool,NF)], NF) -> Doc
 printBinders sep ii xs (((x,occurs,a):pis),b) = printBinders sep (i <| ii) (xs |> (printBind' ii i occurs a <+> sep)) (pis,b)

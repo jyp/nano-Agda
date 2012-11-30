@@ -61,21 +61,21 @@ resolveTerm (A.ESet (A.Sort (p,"#"))) = return $ Star p $ Sort (-1)
 resolveTerm (A.ESet (A.Sort (p,'*':s))) = return $ Star p $ Sort (read ('0':s))
 resolveTerm (A.EProj x (A.AIdent (Identifier (_,field)))) = Proj <$> resolveTerm x <*> pure field
 resolveTerm (A.EApp f x) = App <$> resolveTerm f <*> resolveTerm x
-resolveTerm (A.ESigma decls) = sigma <$> (resolveDecls =<< mapM decodeDecl decls)
+resolveTerm (A.ESigma (A.Open (p,_)) decls) = Sigma p <$> (resolveDecls =<< mapM decodeDecl decls)
 resolveTerm (A.EPi a arrow b) = do
   (vs,a') <- decodeDecl a
   manyDep Pi a' vs b
 
 resolveTerm (A.EAbs ids _arrow_ b) = manyLam ids b
-resolveTerm (A.EPair defs) = pair <$> (forM defs $ \(A.Def (A.AIdent i@(Identifier (_p,f))) e) -> do
+resolveTerm (A.EPair defs) = Pair dummyPosition <$> (forM defs $ \(A.Def (A.AIdent i@(Identifier (_p,f))) e) -> do
                                           e' <- resolveTerm e
                                           return (f,e'))
 resolveTerm (A.EAnn e1 e2) = Ann <$> resolveTerm e1 <*> resolveTerm e2
 resolveTerm (A.EThis) = return This
 
-resolveTerm (A.EFin ts) = return $ Fin [t | (A.AIdent i@(Identifier (_p,t))) <- ts]
-resolveTerm (A.ETag (A.AIdent i@(Identifier (_p,t)))) = return $ Tag t
-resolveTerm (A.ECas cs) = Cas <$> (forM cs $ \(A.Def (A.AIdent i@(Identifier (_p,t))) e) -> do
+resolveTerm (A.EFin (A.OpenBrack (p,_)) ts) = return $ Fin p [t | (A.AIdent i@(Identifier (_p,t))) <- ts]
+resolveTerm (A.ETag (A.AIdent i@(Identifier (p,t)))) = return $ Tag p t
+resolveTerm (A.ECas (A.Open (p,_)) cs) = Cas p <$> (forM cs $ \(A.Def (A.AIdent i@(Identifier (_p,t))) e) -> do
                                       e' <- resolveTerm e
                                       return (t,e'))
 

@@ -54,25 +54,25 @@ iType g (Ann e et) = do
   (et',o) <- iSort g et 
   e' <- cType g e et'
   return (e',et') -- type annotations are removed once they're checked
-iType g t@(Star p s) =  return (star s,star $ above s)  
+iType g t@(Star p s) =  return (Star p s,Star p $ above s)  
 iType g (Pi ident tyt tyt')  = do
     (ty ,s1) <- iSort g tyt 
     (ty',s2) <- iSort (Bind ident ty <| g) tyt'
     let o = s1 ⊔ s2
-    return (Pi ident ty ty', star o)
-iType g (Sigma i []) = return (Sigma i [],star 0)          
+    return (Pi ident ty ty', Star (identPosition ident) o)
+iType g (Sigma i []) = return (Sigma i [],Star i 0)          
 iType g (Sigma i ((f,t):ts)) = do
    (t',s1)  <- iSort g t 
-   (Sigma _ ts',s2) <- iSort (Bind (synthId f)  t' <| g) (sigma ts)
+   (Sigma _ ts',s2) <- iSort (Bind (synthId f)  t' <| g) (Sigma i ts)
    let o = s1 ⊔ s2          
-   return (Sigma i ((f,t'):ts'), star o)
+   return (Sigma i ((f,t'):ts'), Star i o)
 iType g e@(V _ x) = do
   return $ (var x, wkn (x+1) ∙ typ)
   where Bind _ typ = g `index` x
         
 iType g (Hole p x) = do
   report $ hang (text ("context of " ++ x ++ " is")) 2 (dispContext g)
-  return (hole x, hole ("type of " ++ x))
+  return (Hole p x, Hole p ("type of " ++ x))
 
 iType g t@(Lam x (Hole _ _) e) = throwError (t,"cannot infer type for" <+> display g t)
 iType g (Lam x ty e) = do
@@ -80,15 +80,14 @@ iType g (Lam x ty e) = do
     (ve,t) <- iType (Bind x  vty <| g) e
     return $ (Lam x vty ve, Pi x vty t)
 
-iType g (Pair _ fs) = do
+iType g (Pair p fs) = do
   (fs,vs,ts) <- unzip3 <$> (forM fs $ \(f,x) -> do 
                             (x',xt) <- iType g x
                             return (f,x',xt))
-  return (pair (zip fs vs),sigma (zip fs [ wkn n ∙ t | (n,t) <- zip [0..] ts])) 
+  return (Pair p (zip fs vs),Sigma p (zip fs [ wkn n ∙ t | (n,t) <- zip [0..] ts])) 
   -- possible dependencies in the type are not discovered 
   
-iType g (Tag t) = return (Tag t,Fin [t])
-iType g (Fin ts) = return (Fin ts,star 0)
+iType g (Fin p ts) = return (Fin p ts,Star p 0)
   
 iType g (App e1 e2) = do
    (e1',et) <- iType g e1
@@ -141,35 +140,36 @@ cType0 g (Lam name ty0 e) (Pi name' ty ty')
            e' <- cType (Bind name ty <| g) e ty'
            return (Lam name ty e')
 
-cType0 g (Pair _ ignored) (Sigma _ []) = return $ pair ignored
--- note: subtyping
-cType0 g (Pair _ ((f,x):xs)) (Sigma i fs@((f',xt):xts)) 
--- BETTER: directly lookup the field in the pair instead.
-  | f /= f' = do  Pair _ fs' <- cType g (pair xs) (sigma fs)
-                  return $ pair ((f,x):fs')
+-- note: there is automatic coercion of values to more specific types.
+cType0 g (Pair p _ignored) (Sigma _ []) = return $ Pair p []
+cType0 g (Pair p ((f,x):xs)) (Sigma i fs@((f',xt):xts)) 
+  | f /= f' = do  Pair _ fs' <- cType g (Pair p xs) (Sigma p fs)
+                  return $ Pair p ((f,x):fs')
   | f == f' = do
-    -- note that names do not have to match.  
     x' <- cType g x xt
-    report $ hang "Remains to check: " 2 $ sep ["pair:" <+> display g (pair xs), 
-                                                "type:" <+>  display g (subst0 x' ∙ sigma xts)]
-    Pair _ xs' <- cType g (pair xs) (subst0 x' ∙ sigma xts)
-    return (pair ((f,x'):xs'))
+    -- report $ hang "Remains to check: " 2 $ sep ["pair:" <+> display g (pair xs), "type:" <+>  display g (subst0 x' ∙ sigma xts)]
+    Pair _ xs' <- cType g (Pair p xs) (subst0 x' ∙ Sigma p xts)
+    return (Pair p ((f,x'):xs'))
 
-cType0 g c@(Cas cs) (Pi _ (Fin ct') vt) = do
-  let ct = Fin $ map fst cs
-  unify (Bind dummyId ct <| g) (var 0) (Fin ct') ct
-  cs' <- forM cs $ \ (p,v) -> do
-     unless (p `elem` ct') $ throwError (v,"tag not found: " <> text p)
-     v' <- cType g v (subst0 (Tag p) ∙ vt)
-     return (p,v')
-  return (cas cs')
+cType0 g c@(Cas p cs) (Pi _ (Fin p' ct') vt) = do
+  let ct = Fin p' $ map fst cs
+  unify (Bind dummyId ct <| g) (var 0) (Fin p' ct') ct
+  cs' <- forM cs $ \ (x,v) -> do
+     unless (x `elem` ct') $ throwError (v,"tag not found: " <> text x)
+     v' <- cType g v (subst0 (Tag p x) ∙ vt)
+     return (x,v')
+  return (Cas p cs')
   
+cType0 g e@(Tag p t) ty@(Fin p' ts) 
+  | t `elem` ts = return e
+  | otherwise = throwError (e,vcat ["tag: " <> text t, "not in: " <> display g ty])
+
 cType0 g e v = do 
   -- report $ hang "no checking rule for" 2 $ vcat ["term = " <> display g e, "type = " <>display g v]
   (e',v') <- iType g e
   unify g e v' v
   return e'
-
+  
 -- | Unification
 unify :: Context -> Term -> Type -> Type -> Result ()
 unify g0 e q0' q0 = unif g0 q0' q0 where 
@@ -182,20 +182,20 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
      (Pi i a b , Pi _ a' b') -> (a' <: a) >> unif (Bind i a <| g) b b'
      (Lam i a b , Lam _ a' b') -> (a' <: a) >> unif (Bind i a <| g) b b'
      (App a b , App a' b') -> unif g a a' >> (b <: b')
-     (Sigma _ xs, Sigma _ []) -> return ()    
-     (Sigma _ ((f,x):xs) , Sigma _ ((f',x'):xs')) -> do
+     (Sigma _ [], Sigma _ []) -> return ()    
+     (Sigma p ((f,x):xs) , Sigma p' ((f',x'):xs')) -> do
            check $ f == f'
            x <: x'
-           unif (Bind (synthId f) x' <| g) (sigma xs) (sigma xs')
+           unif (Bind (synthId f) x' <| g) (Sigma p xs) (Sigma p' xs')
      (Pair _ xs , Pair _ xs') -> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
      (Proj x f , Proj x' f') -> check (f == f') >> unif g x x'
      (V _ x , V _ x') -> check (x == x')
      (Hole _ _, _) -> constraint
      (_, Hole _ _) -> constraint
      (This,This) -> return ()
-     (Tag t  , Tag t') -> check $ t == t'
-     (Fin ts , Fin ts') -> check $ all (`elem` ts') ts
-     (Cas xs , Cas xs') -> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
+     (Tag _ t, Tag _ t') -> check $ t == t'
+     (Fin _ ts , Fin _ ts') -> check $ ts == ts'
+     (Cas _ xs , Cas _ xs') -> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
      _ | isBox q || isBox q' -> unif' g q' q
      _  -> crash
      where (<:) :: Type -> Type -> Result ()
