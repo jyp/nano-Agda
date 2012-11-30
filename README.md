@@ -11,7 +11,7 @@ Features:
 
 * A hierarchy of universes (A la Agda)
 * Finite types
-* Dependent products and sums (ΠΣ)
+* Dependent products and sums (Π,Σ)
 * A top-level definition (this) which can be used recursively (general recursion)
 
 Structure:
