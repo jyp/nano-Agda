@@ -1,4 +1,4 @@
-{-# LANGUAGE PackageImports, TypeSynonymInstances, FlexibleInstances, GADTs, TupleSections #-}
+{-# LANGUAGE PackageImports, TypeSynonymInstances, FlexibleInstances, GADTs, TupleSections, GeneralizedNewtypeDeriving #-}
 
 module TypeCheckerNF where
 
@@ -7,8 +7,9 @@ import Basics
 import Display
 import Control.Monad.Error
 import Data.Maybe
-import Control.Monad.Trans.Error (ErrorT, runErrorT)
-import Control.Monad.Trans.Writer
+import Control.Monad.Error (ErrorT, runErrorT)
+import Control.Monad.Writer
+import Control.Monad.Reader
 import Data.Functor.Identity
 import Data.Sequence hiding (replicate,zip,reverse)
 import Data.Foldable (toList)
@@ -20,19 +21,22 @@ import Data.Function
 instance Error (Term,Doc) where
   strMsg s = (hole "strMsg: panic!",text s)
 
-type Result a = (ErrorT (Term,Doc)) -- term is used for position information
-                (WriterT [Doc] Identity) a
+newtype Result a = Result (
+  (ReaderT (Term,Type)) -- the module being type-checked and its type (in normal form)
+  ((ErrorT (Term,Doc)) -- term is used for position information
+  (Writer [Doc])) a)
+ deriving (Functor, Applicative, Monad, MonadReader (Term,Type), MonadError (Term,Doc), MonadWriter [Doc])
 
 report :: Doc -> Result ()
-report x = lift $ tell [x]
+report x = tell [x]
 
-runChecker :: Result a -> (Either (Term,Doc) a,[Doc])
-runChecker x = runIdentity $ runWriterT $ runErrorT x
+runChecker :: (Term,Type) -> Result a -> (Either (Term,Doc) a,[Doc])
+runChecker x (Result m) = runIdentity $ runWriterT $ runErrorT $ runReaderT m x
 
 type Value    = NF
 type Type     = Value
 data Bind     = Bind {entryIdent :: Ident, 
-                      entryType :: Type   -- ^ Attention: context of the type does not contain the variable bound here.
+                      entryType :: Type   -- ^ Note: the context of the type does not contain the variable bound here.
                      }
 type Context  = Seq Bind
 
@@ -88,19 +92,13 @@ iType g (Pair _ fs) = do
 iType g (Tag t) = return (Tag t,Fin [t])
 iType g (Fin ts) = return (Fin ts,star 0)
   
-
-iType g (Box n t e env) = do
-  (t',_) <- iSort g t
-  return (Box n t' e env,t')
-  -- checking inside the box is delayed until one needs to compare its content to something else.
-
 iType g t = throwError (t,hang "cannot infer type for" 2 $ display g t)
          
 -- | Infer a sort, and normalise
 iSort :: Context -> Term -> Result (Type,Sort)
 iSort g e = do
   (val,v) <- iType g e
-  v' <- open g v
+  v' <- whnf g v
   case v' of 
     Star _ i -> return (val,i)
     Hole _ h -> do 
@@ -110,20 +108,20 @@ iSort g e = do
 
 
 -- | Check the type and normalize
-cType :: Context -> Term -> Type -> Result Value
-cType g (Lam name (Hole _ _) e) (Pi name' ty ty') = do
+cType0 :: Context -> Term -> Type -> Result Value
+cType0 g (Lam name (Hole _ _) e) (Pi name' ty ty') = do
         e' <- cType (Bind name ty <| g) e ty'
         return (Lam name ty e') -- the type and binder is filled in.
 
-cType g (Lam name ty0 e) (Pi name' ty ty')
+cType0 g (Lam name ty0 e) (Pi name' ty ty')
   =     do (t,_o) <- iSort g ty0
            unify g (Hole (identPosition name) (show name)) ty t
            e' <- cType (Bind name ty <| g) e ty'
            return (Lam name ty e')
 
-cType g (Pair _ ignored) (Sigma _ []) = return $ pair ignored
+cType0 g (Pair _ ignored) (Sigma _ []) = return $ pair ignored
 -- note: subtyping
-cType g (Pair _ ((f,x):xs)) (Sigma i fs@((f',xt):xts)) 
+cType0 g (Pair _ ((f,x):xs)) (Sigma i fs@((f',xt):xts)) 
 -- BETTER: directly lookup the field in the pair instead.
   | f /= f' = do  Pair _ fs' <- cType g (pair xs) (sigma fs)
                   return $ pair ((f,x):fs')
@@ -135,15 +133,16 @@ cType g (Pair _ ((f,x):xs)) (Sigma i fs@((f',xt):xts))
     Pair _ xs' <- cType g (pair xs) (subst0 x' ∙ sigma xts)
     return (pair ((f,x'):xs'))
 
-cType g (Cas c cs) t = do
+cType0 g c@(Cas cs) (Pi _ (Fin ct') vt) = do
   let ct = Fin $ map fst cs
-  c' <- cType g c ct
+  unify (Bind dummyId ct <| g) (var 0) (Fin ct') ct
   cs' <- forM cs $ \ (p,v) -> do
-     v' <- cType g v t
+     unless (p `elem` ct') $ throwError (v,"tag not found: " <> text p)
+     v' <- cType g v (subst0 (Tag p) ∙ vt)
      return (p,v')
   return (cas c' cs')
 
-cType g (App e1 e2 c) ct = do
+cType0 g (App e1 e2 c) ct = do
    (e1',et) <- iType g e1
    et' <- open g et
    case et' of
@@ -153,7 +152,7 @@ cType g (App e1 e2 c) ct = do
      _             ->  throwError (e1,"type should be function:" <> display g et')
 
 
-cType g (Split e fs' c) ct = do
+cType0 g (Split e fs' c) ct = do
   let fsText = sep $ punctuate ";" (map text fs')
   (e',et) <- iType g e
   et' <- open g et
@@ -164,19 +163,21 @@ cType g (Split e fs' c) ct = do
                                                         "type:" <+> display g et',
                                                         "fields:" <+> fsText])
   
-
-cType g e box | isBox box = cType g e =<< open g box
-
-cType g e v = do 
+cType0 g e v = do 
   -- report $ hang "no checking rule for" 2 $ vcat ["term = " <> display g e, "type = " <>display g v]
   (e',v') <- iType g e
   unify g e v' v
   return e'
 
--- | Subtyping test
+cType g e box | isBox box = cType g e =<< open g box
+
+-- | Unification
 unify :: Context -> Term -> Type -> Type -> Result ()
 unify g0 e q0' q0 = unif g0 q0' q0 where 
-   unif :: Context -> Type -> Type -> Result ()
+   unif, unif' :: Context -> Type -> Type -> Result ()
+   unif' g q' q = do x' <- whnf g q'
+                     x <- whnf g q
+                     unif g x' x
    unif g q' q = case (q',q) of
      (Star _ s , Star _ s') -> check $ s == s'
      (Pi i a b , Pi _ a' b') -> (a' <: a) >> unif (Bind i a <| g) b b'
@@ -192,24 +193,17 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
      (V _ x , V _ x') -> check (x == x')
      (Hole _ _, _) -> constraint
      (_, Hole _ _) -> constraint
-     (Box n t e env, Box n' t' e' env') -> check (n == n') >> sequence_ [env!!v <: env'!!v | v <- dec (freeVars e)]
+     (This,This) -> return ()
      (Tag t  , Tag t') -> check $ t == t'
      (Fin ts , Fin ts') -> check $ all (`elem` ts') ts
-     (Cas x xs , Cas x' xs') -> x <: x' >> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
-     _ | isBox q' -> do
-       x' <- open g q' 
-       x' <: q
-     _ | isBox q -> do
-       x <- open g q 
-       x <: q'
-     (Ann x _ , x') -> x <: x' -- FIXME: annotations should not be found in NFs; remove this.
-     (x , Ann x' _) -> x <: x'
+     (Cas xs , Cas xs') -> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
+     _ | isBox q || isBox q' -> unif' g q' q
      _  -> crash
      where (<:) :: Type -> Type -> Result ()
-           (<:) = unif g
+           (<:) = unif g 
            infix 4 <:
            constraint = report $ vcat (["constraint: " <> display g q',
-                                        "subtype of: " <> display g q] ++ chkCtx)
+                                        "equal to: " <> display g q] ++ chkCtx)
            check :: Bool -> Result () 
            check c = unless c crash 
            crash :: Result ()
@@ -224,36 +218,17 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
            eqList p (x:xs) (x':xs') = p x x' >> eqList p xs xs'
            eqList p _ _ = crash
 
-uncheckedOpen box@(Box i t e _) = (subst0 box ∙ e) `ann` t
-uncheckedOpen x = x
+cType g e t = cType0 g e =<< whnf g t
 
-open g box = case evaluate box of
-               Just (o) -> do
-                 report (hang "opening:" 2 $ sep ["box:" <+> display g box
-                                                 ,"in: " <+> display g o
-                                                 -- "typ:" <+> display g t
-                                                 ]) 
-                 -- cType g o t FIXME: typecheck & normalise 
-                 return o
-               _ -> return box
+-- | Reduce to whnf. May loop if 
+whnf g x = do
+  -- report $ "whnf: " <> (display g x)
+  m <- fst <$> ask
+  case whnf' m x of 
+    Nothing -> return x
+    Just x' -> whnf g x' -- TODO: consume some fuel
 
-{-
-proj e h = split e [h] (var 0) -- FIXME: totally wrong: variables in the context will be the other projections.
 
 projType e f fs = case break ((==f) . fst) fs of
                     (hs,((_,t):_)) -> Just (([proj e h | (h,_) <- reverse hs] ++ map var [0..]) ∙ t)
                     _ -> Nothing
-projTypes e fs fs' = case fs of
-                       [] -> Just []
-                       (x:xs) -> (:) <$> projType e x fs' <*> projTypes e xs fs'
--}
-
-isBox = isJust . evaluate
-
-evaluate :: Term -> Maybe Term
-evaluate box@(Box _ t e env) = return ((box : env) ∙ e)
-evaluate (Split x fs c) | Just x' <- evaluate x = return $ split x' fs c
-evaluate (App f x c) | Just f' <- evaluate f = return $ app f' x c
--- evaluate (Cas x cs) = (`cas` cs) <$> evaluate x 
--- FIXME: do it.
-evaluate _ = Nothing

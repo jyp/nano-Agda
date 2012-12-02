@@ -10,7 +10,6 @@ import Text.PrettyPrint.HughesPJ
 import Numeric (showIntAtBase)
 import Control.Arrow (second)
 import Control.Monad.Error
-import Data.Monoid
 import Data.Sequence hiding (empty)
 import Data.Foldable
 

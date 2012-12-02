@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
 module Basics
-       (module Data.Monoid, (<>),
+       (module Data.Monoid,
         module Control.Applicative,
         Sort(..),
         above, oneLev, zero,
@@ -11,12 +11,8 @@ module Basics
 
 import Display
 import Control.Applicative
-import Data.Monoid
 import Data.Sequence (Seq)
-
-
-(<>) :: Monoid a => a -> a -> a
-(<>) = mappend
+import Data.Monoid
 
 --------------
 -- Ident

@@ -1,17 +1,5 @@
-<m: {Nat : *
-    ;zero : Nat
-    ;succ : Nat -> Nat
---     ;plus : Nat -> Nat -> Nat
-}> 
-split m into Nat,zero,succ in
-(Nat = { t : [zer,suc]; 
+Nat = split this in
+       { t : [zer,suc]; 
          v : case t of {
                 zer = [tt],
-                suc = Nat} : *}
-,zero = (t = 'zer, v = 'tt)
-,succ = \(n : ?N) -> (t = 'suc, v = n)
--- ,plus = \o n -> case o.t of{
---                    true = n,
---                    false = m.succ (m.plus o.v n)
---                  }
-)
+                suc = Nat} : *

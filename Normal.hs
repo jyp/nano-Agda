@@ -6,23 +6,24 @@ import Basics
 import Display
 import Data.Foldable
 import Control.Arrow (first, second)
-import Data.Sequence hiding (zip,replicate,reverse)
+import Data.Sequence 
 import Options
 import qualified Data.List as L
 
 type NF = Term
 type Neutral = Term
 
+-- | Representation of terms.
 data Term :: * where
      Star :: Position -> Sort -> NF
      
      Pi  :: Ident -> NF -> NF -> NF
      Lam :: Ident -> NF -> NF -> NF 
-     App :: Neutral -> NF -> NF -> NF
+     App :: Ident -> Neutral -> [NF] -> NF -> NF
      
      Sigma  :: Position -> [(String,NF)] -> NF 
-     Pair   :: Position -> [(String,NF)] -> NF -- Note: Unlike Sigma, Pair do not bind variables
-     Split  :: Neutral -> [String] -> NF -> NF
+     Pair   :: Position -> [(String,NF)] -> NF -- Note: Unlike Sigma, Pairs do not bind variables
+     Split  :: Neutral -> [Ident] -> NF -> NF
               
      Fin :: [String] -> NF
      Tag :: String -> NF
@@ -32,9 +33,9 @@ data Term :: * where
           Neutral
      Hole :: Position -> String -> Neutral
      
-     Box :: Ident -> NF -> Term -> Subst -> NF
-     -- | type annotation     
-     Ann :: Neutral -> NF -> NF 
+     This :: NF -- ^ reference to the module currently type-checked
+  
+     Ann :: Neutral -> NF -> NF -- ^ type annotation     
   deriving (Show)
 
 termPosition t = case t of
@@ -45,10 +46,9 @@ termPosition t = case t of
    (Sigma p _) -> p
    (Lam i _ _) -> identPosition i
    (Pair p _ ) -> p
-   (App x y z) -> s x
+   (App i _ _ _) -> identPosition i
    (Split x _ _) -> s x
    (Ann x _) -> s x 
-   (Cas c _) -> termPosition c
    _ -> dummyPosition
   where s = termPosition
 
@@ -61,7 +61,9 @@ sigma = Sigma dummyPosition
 pair = Pair dummyPosition
 tag = Tag
 fin = Fin
+cas = Cas
 
+-- | The identity substitution
 identity = map var [0..]
 
 subst0 :: NF -> Subst
@@ -82,11 +84,11 @@ apply f t = case t of
   Pi i a b -> Pi i (s a) (s' b)
   Sigma i [] -> Sigma i []
   Sigma i ((f,x):xs) -> let Sigma _ xs' = s' (sigma xs) in Sigma i ((f,s x):xs')
-  (App f a c) -> app (s f) (s a) (s' c)
+  (App i f as k) -> app i (s f) (s as) (s' k)
   (Split x k c) -> let n = L.length k in Split (s x) k ((map var [0..n] ++ (wkn n ∘ f)) ∙ c)
   Hole p x -> Hole p x
   V _ x -> f !! x
-  Box n t e g -> Box n (s t) (s' e) (map s g)
+  This -> This
   Ann x t -> ann (s x) (s t)
   
   Cas x cs -> cas (s x) (map (second s) cs) 
@@ -101,17 +103,17 @@ apply f t = case t of
 ann x t = Ann x t
 
 -- | Hereditary application
-app (Lam i _ bo) u c = subst0 (subst0 u ∙ bo) ∙ c
-app (Split x k c) u c' = Split x k $ app c u $ c'
-app (Cas x cs) u c = Cas x (map (second (\f -> app f u c)) cs)
-app n            u c = App n u c
+app i f [] k = subst0 f ∙ k
+app i (Lam i' _ bo) (a:as) k = app i (subst0 a ∙ bo) as k
+app i (Split x is c) as k = Split x is $ app i c (map (wkn (length is) ∙) as) (wkpn 1 (length is) ∙ k)
+app i (Cas x cs) as k = Cas x (map (second (\f -> app i f as k)) cs)
+app i (App i' f' as' k') as k = App i' f' as' $ app i k' (map (wk ∙) as) (wk ∙ k)
+app i f as k = App i f as k
 
 -- | Hereditary projection
-split (Pair _ fs) [] c = c
-split (Pair _ fs) (f':fs') c | Just x <- lookup f' fs = split (pair fs) fs' (subst0 x ∙ c)
-split (App a b c) k c' = App a b (split c k c')
+split (Pair _ fs) is k = substN (map snd fs) ∙ k
 split x k c = Split x k c
--- FIXME: cas
+-- FIXME: other cases
 
 
 cas :: NF -> [(String,NF)] -> NF
@@ -137,10 +139,11 @@ freeVars (Hole _ _) = mempty
 freeVars (Pair _ xs) = concatMap (freeVars . snd) xs
 freeVars (Split x k c) = freeVars x <> decn (L.length k) (freeVars c)
 freeVars (Box _ t e env) = freeVars t <> concat [freeVars (env!!x) | x <- dec (freeVars e)]
+freeVars This = []
 freeVars (Ann x t) = freeVars x <> freeVars t
 freeVars (Fin _) = []
 freeVars (Tag _) = []
-freeVars (Cas t cs) = freeVars t <> concatMap (freeVars . snd) cs
+freeVars (Cas cs) = concatMap (freeVars . snd) cs
 
 iOccursIn :: Int -> Term -> Bool
 iOccursIn x t = x `elem` (freeVars t)
@@ -162,21 +165,17 @@ cPrint :: Int -> DisplayContext -> Term -> Doc
 cPrint p ii (Hole _ x) = text x
 cPrint p ii (Star _ i) = pretty i
 cPrint p ii (V _ k) 
-  | k < 0 || k >= length ii  = text "<global " <+> pretty (k - length ii) <> ">"
+  | k < 0 || k >= length ii  = text "<global " <> pretty (k - length ii) <> ">"
   | otherwise = pretty (ii `index` k) 
 cPrint p ii t@(Pi _ _ _)    = parensIf (p > 1) (printBinders "→" ii mempty $ nestedPis t)
 cPrint p ii t@(Sigma _ _) = parensIf (p > 1) (printBinders "×" ii mempty $ nestedSigmas t)
 cPrint p ii (t@(Lam _ _ _)) = parensIf (p > 1) (nestedLams ii mempty t)
 cPrint p ii (Pair _ fs) = parensIf (p > (-1)) (sep (punctuate comma [text name <+> text "=" <+> cPrint 0 ii x | (name,x) <- fs ]))
-cPrint p ii (Box x t e env) = "<" <> pretty i <> nv 
---                              <> ":" <> cPrint 0 ii t
-                              <> ">"
-        where i = allocName ii x
-              nv = "[" <> sep (punctuate ";" (dispEnv ii [(f,env!!f) | f <- dec (freeVars t)])) <> "]"
+cPrint p ii This = "this" 
 cPrint p ii (Ann x t) = parensIf (p > 0) (cPrint 0 ii x <+> ":" <+> cPrint 0 ii t)
 cPrint p ii (Fin ts) = "[" <> sep (punctuate comma (map text ts)) <> "]"
 cPrint p ii (Tag t) = "'" <> text t
-cPrint p ii (Cas x cs) = "case" <+> cPrint 0 ii x <+> "of {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
+cPrint p ii (Cas cs) = "case {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
 
 cPrint p ii x = "(" <> sep (punctuate ";" (printNested ii x)) <> ")"
 
@@ -202,7 +201,7 @@ printBinders _ ii xs ([],b)                 = sep $ toList $ (xs |> cPrint 1 ii 
 nestedLams :: DisplayContext -> Seq Doc -> Term -> Doc
 nestedLams ii xs (Lam x ty c) = nestedLams (i <| ii) (xs |> parens (pretty i <+> ":" <+> cPrint 0 ii ty)) c
                                   where i = allocName ii x
-nestedLams ii xs t         = (text "\\ " <> (sep $ toList $ (xs |> "->")) <+> nest 3 (cPrint 0 ii t))
+nestedLams ii xs t         = (text "\\ " <> (sep $ toList $ (xs |> "->")) <> " " <> nest 3 (cPrint 0 ii t))
 
 printBind' ii name occurs d = case not (isDummyId name) || occurs of
                   True -> parens (pretty name <+> ":" <+> cPrint 0 ii d)
@@ -212,7 +211,6 @@ nestedApp :: Neutral -> (Neutral,[NF])
 nestedApp (App f a) = (second (++ [a])) (nestedApp f)
 nestedApp t = (t,[])
 -}
-
 
 instance Pretty Term where
     pretty = cPrint (-100) mempty

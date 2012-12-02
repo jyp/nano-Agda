@@ -1,6 +1,6 @@
 module Main where
 
-
+import Data.Either
 import System.IO ( stdin, hGetContents )
 import System.Environment ( getArgs )
 import Options 
@@ -13,55 +13,75 @@ import Basics
 import Display
 import Text.PrettyPrint.HughesPJ (render)
 import qualified Data.Sequence as S
-
+import System.FilePath
+import System.Directory
+import Control.Monad.Error
 
 import Language.LBNF.Runtime (ParseMonad(..))
 
--- type ParseFun a = [Token] -> Err a
+instance Error Doc where
+  noMsg = "nanoAgda: unknown error"
+  strMsg = text
 
-myLLexer = tokens -- myLexer
+myLLexer = tokens 
 
 type Verbosity = Int
 
-putStrV :: Verbosity -> Doc -> IO ()
-putStrV v s = if verb options >= v then putStrLn (render s) else return ()
+putStrV :: Verbosity -> Doc -> Checker ()
+putStrV v s = if verb options >= v then liftIO $ putStrLn (render s) else return ()
 
+-- | The file containing the type of the term contained in file @f@
+typeFile f = replaceExtension f "type.na"
+
+runFile :: FilePath -> Checker Value
 runFile f = do
   putStrV 1 $ "Processing file:" <+> text f
-  contents <- readFile f
+  contents <- liftIO $ readFile f
   run contents f
 
 instance Pretty Token where
     pretty = text . show
 
+type Checker a = (ErrorT Doc IO) a
+
+run :: String -> FilePath -> Checker Value
 run s fname = let ts = myLLexer s in case pExp ts of
    Bad err -> do 
-     putStrLn "Parse Failed."
      putStrV 1 $ "Tokens:" <+> pretty ts
-     putStrLn $ fname ++ ":" ++ err
-     return False
-   Ok tree -> do 
+     throwError $ text $ fname ++ ": parse failed: " ++ err
+   Ok tree -> do
      process fname tree
 
+getType :: FilePath -> Checker Value
+getType fname = do
+  let t = typeFile fname
+  putStrV 10 $ "typeFile = " <> text t
+  ex <- liftIO $ doesFileExist t
+  if ex  
+    then do putStrV 2 $ "Using type from file: " <> text t
+            runFile t 
+    else do putStrV 2 "Using default type" 
+            return (Star dummyPosition 1)
+
+process :: FilePath -> Exp -> Checker Value
 process fname modul = do
+  typ <- getType fname
   let resolved = runResolver $ resolveTerm modul
   putStrV 4 $ "[Resolved into]" $$ pretty resolved
-  let opened = uncheckedOpen resolved
-  putStrV 3 $ "[Opened to]" $$ pretty opened
-  let (checked,info) = runChecker $ (iType mempty opened)
+  let (checked,info) = runChecker (resolved,typ) $ cType mempty resolved typ
   mapM (putStrV 0) info  -- display constraints, etc.
   case checked of
-    Right (a,b) -> do 
+    Right a -> do 
        putStrV 0 $ "nf =" <+> pretty a
-       putStrV 0 $ "ty =" <+> pretty b
-       return True
+       return a
     Left (e,err) -> do let (line,col) = termPosition e 
-                       putStrV 0 (text fname <> ":" <> pretty line <> ":" <> pretty (col - 1) <> ":" <+> err)
-                       return False
+                       throwError $ (text fname <> ":" <> pretty line <> ":" <> pretty (col - 1) <> ": " <> err)
+                       
       
 main :: IO ()
 main = do 
-  results <- mapM runFile (files options)
-  let oks = filter id results
-  putStrV 0 $ pretty (length oks) <> "/" <> pretty (length results) <+> "files typecheck."
+  results <- forM (files options) $ \f -> runErrorT $ runFile f
+  let (errs,oks) = partitionEithers results
+  mapM (putStrLn . render) errs               
+  putStrLn $ show (length oks) ++ "/" ++ show (length results) ++ " files typecheck."
 
