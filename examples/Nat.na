@@ -1,5 +1,5 @@
-Nat = split this in
+Nat = split this into Nat,zero,succ in
        { t : [zer,suc]; 
          v : case t of {
                 zer = [tt],
-                suc = Nat} : *
+                suc = Nat} : *}
