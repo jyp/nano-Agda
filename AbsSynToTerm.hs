@@ -39,6 +39,7 @@ insertVar (Identifier (_pos,x)) e = x:e
 dummyVar :: Identifier
 dummyVar = Identifier ((0,0),"_")
 
+i2i :: Identifier -> Ident
 i2i (Identifier (p,s)) = Ident p s
 
 manyDep binder a []     b = resolveTerm b
@@ -75,9 +76,12 @@ resolveTerm (A.EThis) = return This
 
 resolveTerm (A.EFin (A.OpenBrack (p,_)) ts) = return $ Fin p [t | (A.AIdent i@(Identifier (_p,t))) <- ts]
 resolveTerm (A.ETag (A.AIdent i@(Identifier (p,t)))) = return $ Tag p t
-resolveTerm (A.ECas (A.Open (p,_)) cs) = Cas p <$> (forM cs $ \(A.Def (A.AIdent i@(Identifier (_p,t))) e) -> do
-                                      e' <- resolveTerm e
-                                      return (t,e'))
+resolveTerm (A.ECas (A.AIdent x) p e _ cs) = Cas (i2i x) 
+                                   <$> local (insertVar x) (resolveTerm p)
+                                   <*> resolveTerm e
+                                   <*> (forM cs $ \(A.Def (A.AIdent i@(Identifier (_p,t))) e) -> do
+                                           e' <- resolveTerm e
+                                           return (t,e'))
 
 decodeDecl d = case d of
    (A.EAnn vars a') -> do vs <- extractVars vars

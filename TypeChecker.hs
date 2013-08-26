@@ -1,4 +1,4 @@
-{-# LANGUAGE PackageImports, TypeSynonymInstances, FlexibleInstances, GADTs, TupleSections, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE PackageImports, TypeSynonymInstances, FlexibleInstances, GADTs, TupleSections, GeneralizedNewtypeDeriving, OverloadedStrings #-}
 
 module TypeChecker where
 
@@ -7,14 +7,11 @@ import Basics
 import Display
 import Control.Monad.Error
 import Data.Maybe
-import Control.Monad.Error (ErrorT, runErrorT)
 import Control.Monad.Writer
 import Control.Monad.Reader
 import Data.Functor.Identity
 import Data.Sequence hiding (replicate,zip,reverse)
-import Data.Foldable (toList)
 import Terms
-import Options
 
 instance Error (Term,Doc) where
   strMsg s = (hole "strMsg: panic!",text s)
@@ -109,6 +106,18 @@ iType g (Proj e f) = do
                                                         "type:" <+> display g et,
                                                         "field:" <+> text f])
     
+iType g c@(Cas i q e cs) = do
+  let p = identPosition i
+      et = Fin p $ map fst cs
+  e' <- cType g e et
+  (q',_) <- iSort g q 
+
+  cs' <- forM cs $ \ (x,v) -> do
+     v' <- cType g v (subst0 (Tag p x) ∙ q')
+     return (x,v')
+  return (cas i q' e' cs',subst0 e' ∙ q')
+      
+    
 iType g This = do
   (_,thist) <- ask
   return (This, thist)
@@ -151,15 +160,6 @@ cType0 g (Pair p ((f,x):xs)) (Sigma i fs@((f',xt):xts))
     Pair _ xs' <- cType g (Pair p xs) (subst0 x' ∙ Sigma p xts)
     return (Pair p ((f,x'):xs'))
 
-cType0 g c@(Cas p cs) (Pi _ (Fin p' ct') vt) = do
-  let ct = Fin p' $ map fst cs
-  unify (Bind dummyId ct <| g) (var 0) (Fin p' ct') ct
-  cs' <- forM cs $ \ (x,v) -> do
-     unless (x `elem` ct') $ throwError (v,"tag not found: " <> text x)
-     v' <- cType g v (subst0 (Tag p x) ∙ vt)
-     return (x,v')
-  return (Cas p cs')
-  
 cType0 g e@(Tag p t) ty@(Fin p' ts) 
   | t `elem` ts = return e
   | otherwise = throwError (e,vcat ["tag: " <> text t, "not in: " <> display g ty])
@@ -195,7 +195,7 @@ unify g0 e q0' q0 = unif g0 q0' q0 where
      (This,This) -> return ()
      (Tag _ t, Tag _ t') -> check $ t == t'
      (Fin _ ts , Fin _ ts') -> check $ ts == ts'
-     (Cas _ xs , Cas _ xs') -> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
+     (Cas _ _ e xs , Cas _ _ e' xs') -> e <: e' >> eqList (\(f,x) (f',x') -> check (f == f') >> x <: x') xs xs'
      _ | isBox q || isBox q' -> unif' g q' q
      _  -> crash
      where (<:) :: Type -> Type -> Result ()

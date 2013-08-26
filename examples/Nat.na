@@ -7,9 +7,9 @@
                suc = this.Nat} : [zer,suc] -> *
 ,zero = (t = 'zer, v = 'tt)
 ,succ = \ (n : this.Nat) -> (t = 'suc, v = n)
-,plus = \n o -> (case {
+,plus = \n o -> (using t | this.FNat t -> this.Nat 
+                 case o.t of {
                       zer = \q -> n,
                       suc = \q -> this.succ (this.plus q n)
-                    }
-                 : (p : [zer,suc]) -> this.FNat p -> this.Nat) o.t o.v
+                    }) o.v
 )

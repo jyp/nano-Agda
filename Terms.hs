@@ -21,12 +21,14 @@ data Term :: * where
      App :: Neutral -> NF -> Neutral
      
      Sigma  :: Position -> [(String,NF)] -> NF 
-     Pair   :: Position -> [(String,NF)] -> NF -- Note: Unlike Sigma, Pairs do not bind variables
+     Pair   :: Position -> [(String,NF)] -> NF -- Note: Unlike Sigma, Pairs do not bind variables -- FIX THIS?
      Proj   :: Neutral -> String -> Neutral      
               
      Fin :: Position -> [String] -> NF
      Tag :: Position -> String -> NF
-     Cas :: Position -> [(String, NF)] -> NF
+     Cas :: Ident -> NF {- ^ Elimination pattern -} -> 
+                        Term {- ^ Eliminated expression -} ->
+            [(String, NF)] -> NF
 
      V :: Position -> Int ->  -- ^ deBruijn index 
           Neutral
@@ -50,7 +52,7 @@ termPosition t = case t of
    (Ann x _) -> s x 
    (Fin x _) -> x
    (Tag x _) -> x
-   (Cas x _) -> x
+   (Cas i _ _ _) -> identPosition i
    _ -> dummyPosition
   where s = termPosition
 
@@ -87,7 +89,7 @@ apply f t = case t of
   This -> This
   Ann x t -> ann (s x) (s t)
   
-  Cas p cs -> Cas p (map (second s) cs)
+  Cas p q e cs -> Cas p (s q) (s e) (map (second s) cs)
   Fin p x -> Fin p x
   Tag p x -> Tag p x
  where s' = apply (var 0 : wk ∘ f)
@@ -101,13 +103,18 @@ ann x t = Ann x t
 -- | Application that computes
 app :: NF -> NF -> NF 
 app (Lam i _ bo) u = subst0 u ∙ bo
-app (Cas _ cs) (Tag _ t) | Just x <- lookup t cs = x
 app n            u = App n u
 
 -- | Projection that computes
 proj :: NF -> String -> NF
 proj (Pair _ fs) f | Just x <- lookup f fs = x
 proj x k = Proj x k 
+
+-- | Case that computes
+cas :: Ident -> NF -> NF -> [(String,NF)] -> NF
+cas p pat (Tag _ t) cs | Just x <- lookup t cs = x
+cas p pat e  cs = Cas p pat e cs
+
 
 -----------------------------------
 -- Display
@@ -129,7 +136,7 @@ freeVars This = []
 freeVars (Ann x t) = freeVars x <> freeVars t
 freeVars (Fin _ _) = []
 freeVars (Tag _ _) = []
-freeVars (Cas _ cs) = concatMap (freeVars . snd) cs
+freeVars (Cas _ p e cs) = freeVars p <> freeVars e <> concatMap (freeVars . snd) cs
 
 iOccursIn :: Int -> Term -> Bool
 iOccursIn x t = x `elem` (freeVars t)
@@ -156,7 +163,8 @@ cPrint p ii This = "this"
 cPrint p ii (Ann x t) = parensIf (p > 0) (cPrint 0 ii x <+> ":" <+> cPrint 0 ii t)
 cPrint p ii (Fin _ ts) = "[" <> sep (punctuate comma (map text ts)) <> "]"
 cPrint p ii (Tag _ t) = "'" <> text t
-cPrint p ii (Cas _ cs) = "case {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
+cPrint p ii (Cas x q e cs) = "using" <> pretty i <> "↦" <> cPrint 0 (i<|ii) q <> "case "<> cPrint 0 ii e<> " {" <> sep (punctuate ";" [text c <> "↦" <> cPrint 0 ii a | (c,a) <- cs]) <> "}"
+  where i = allocName ii x
 
 -- FIXME: should remember the variable names in the substitution
 dispEnv :: DisplayContext -> [(Int,NF)] -> [Doc]
