@@ -1,0 +1,20 @@
+
+
+* Typing rules
+#+begin_src
+
+ Γ, x:A , y:B | Δ , z=(x,y)  ⊢                 k : C
+————————————————————————————————————————————————————— elimination pair
+ Γ, z:(x:A)×B | Δ            ⊢  let x,y = z in k : C
+
+
+             { Γ | Δ , z='tagᵢ ⊢  kᵢ : C / i = 1..n }
+—————————————————————————————————————————————————————————————————————————— elimination tag
+Γ, z:{ 'tagᵢ / i = 1..n } | Δ  ⊢  case z of { 'tagᵢ → kᵢ / i = 1..n } : C
+
+
+Γ, f:(x:A)→B , a:A , y:(let x = a in B) | Δ , y=(f a) ⊢                k : C
+—————————————————————————————————————————————————————————————————————————–  elimination λ
+Γ, f:(x:A)→B , a:A                      | Δ           ⊢ let y = f a in k : C
+
+#+end_src
