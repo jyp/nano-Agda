@@ -47,10 +47,10 @@ caseP x l =
       f (s,t) = hang (text s <+> char '→') indentation (term t)
 
 
--- let x = d in t
+-- let i = d in t
 letP :: Doc -> Doc -> Doc -> Doc
-letP x d t =
-    text "let" <+> x $+$
+letP i d t =
+    text "let" <+> i $+$
     nest indentation d $+$ text "in" $+$
     nest indentation t
 
@@ -64,7 +64,7 @@ letP2 i1 i2 = letP $ pairP i1 i2
 term :: Term -> Doc
 term (t,_) =
     case t of
-      Var x -> ident x
+      Var i -> ident i
 
       Pi i x tyA tyB t' ->
           letP1 i (piP x tyA tyB) (term t')
