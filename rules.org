@@ -1,20 +1,99 @@
 
 
 * Typing rules
+
+≡ is the unification operator.
+
+** The two very simple rules :
+
 #+begin_src
 
- Γ, x:A , y:B | Δ , z=(x,y)  ⊢                 k : C
-————————————————————————————————————————————————————— elimination pair
- Γ, z:(x:A)×B | Δ            ⊢  let x,y = z in k : C
+     Γ | Δ ⊢ A ≡ C
+—————————————————————
+Γ, x:A | Δ ⊢ x : C
 
 
-             { Γ | Δ , z='tagᵢ ⊢  kᵢ : C / i = 1..n }
-—————————————————————————————————————————————————————————————————————————— elimination tag
+Γ | Δ ⊢ C ≡ *ⱼ  ∧  i < j
+—————————————————————————
+Γ | Δ ⊢ *ᵢ : C
+
+#+end_src
+
+** Type introduction Rules
+
+Light abuse of notation, when A:*ᵢ is in the environment, it's valid for every *ⱼ when j ≤ i.
+
+#+begin_src
+
+Γ, A:*ᵢ₋₁, x:A | Δ ⊢ B : *ᵢ₋₁   ∧   Γ, A:*ᵢ₋₁, σ:*ᵢ | Δ, σ = (x:A)→B ⊢ t : C
+————————————————————————————————————————————————————————————————————————————
+Γ, A:*ᵢ₋₁ | Δ ⊢ let σ : *ᵢ = (x:A)→B in t : C
+
+
+Γ, A:*ᵢ₋₁, x:A | Δ ⊢ B : *ᵢ₋₁   ∧   Γ, A:*ᵢ₋₁, σ:*ᵢ | Δ, σ = (x:A)×B ⊢ t : C
+————————————————————————————————————————————————————————————————————————————
+Γ, A:*ᵢ₋₁ | Δ ⊢ let σ : *ᵢ = (x:A)×B in t : C
+
+Γ, σ:*₁ | Δ, σ = { 'tagᵢ / i = 1..n } ⊢ t : C
+————————————————————————————————————————————————————————————————————————————
+Γ       | Δ                          ⊢ let σ = { 'tagᵢ / i = 1..n } in t : C
+
+#+end_src
+
+** Elimination Rules (The complicated stuff)
+
+#+begin_src
+
+Γ, x:A , y:B, z:(x:A)×B | Δ , z=(x,y)  ⊢                k : C
+————————————————————————————————————————————————————————————————————————————
+Γ, z:(x:A)×B            | Δ            ⊢ let x,y = z in k : C
+
+
+    { Γ, z:{ 'tagᵢ / i = 1..n } | Δ , z='tagᵢ ⊢  kᵢ : C / i = 1..n }
+————————————————————————————————————————————————————————————————————————————
 Γ, z:{ 'tagᵢ / i = 1..n } | Δ  ⊢  case z of { 'tagᵢ → kᵢ / i = 1..n } : C
 
 
 Γ, f:(x:A)→B , a:A , y:(let x = a in B) | Δ , y=(f a) ⊢                k : C
-—————————————————————————————————————————————————————————————————————————–  elimination λ
+———————————————————————————————————————————————————————————————————————————–
 Γ, f:(x:A)→B , a:A                      | Δ           ⊢ let y = f a in k : C
 
 #+end_src
+
+
+* Environment
+
+** Concept
+We have 3 environments :
+- A context, which contains variables with their type. A type being a full term.
+- A Introduction Environment, which contains the way a variable was introduced. There is only one intro by variable.
+- A Elimination Environment, which contains the various ways a variable is eliminated. There can be multiple elimination by variables.
+
+** Implementation :
+
+#+begin_src haskell
+  type Context = M.Map Ident T.Term
+  type EnvIntro = M.Map Ident Definition
+  type EnvElim = M.Map Ident [Definition]
+#+end_src
+
+** Introduction and Elimination
+
+When we have both introduce and eliminate a variable, we can do stuff™ :
+
+|     | i | x = 'tag₁        | Enforce           |
+| Fin |   |                  | 'tag₁ = 'tag₂     |
+|     | e | y = 'tag₂ (case) |                   |
+|-----+---+------------------+-------------------|
+|     | i | z = (x,y)        | Add aliases :     |
+| Σ   |   |                  | x = x' and y = y' |
+|     | e | (x',y') = z      |                   |
+|-----+---+------------------+-------------------|
+|     | i | f = λx.B         |                   |
+| Π   |   |                  | [fn:1]            |
+|     | e | y = f x'         |                   |
+
+[fn:1] Here, it's more complicated. We could put y = B[x:=x'] (this is only a name substitution, as x and x' are variables) but this doesn't allow anything more and force to know about terms inside the environment. Such, we don't add any more alias in this case.
+
+* Simple tests :
+- Define large (finite) structures like 32 bit integers.
