@@ -28,8 +28,8 @@ runFreshMFrom n m = evalState m n
 
 type Position = (Int,Int)
 
-dummypos :: Position
-dummypos = (-1, -1)
+dummyPos :: Position
+dummyPos = (-1, -1)
 
 -- | Identifier aka, Names with source informations
 
@@ -39,4 +39,4 @@ freshIdent :: (String,Position) -> FreshM Ident
 freshIdent (n,pos) = state ( (\i -> (i,n,pos)) &&& succ )
 
 freshIdentNoPos :: String -> FreshM Ident
-freshIdentNoPos n = freshIdent (n, dummypos)
+freshIdentNoPos n = freshIdent (n, dummyPos)
