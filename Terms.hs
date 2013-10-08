@@ -28,3 +28,32 @@ type TLoc name ref = (TLoc' name ref, Position)
 
 type Term' = TLoc' Ident Ident
 type Term = TLoc Ident Ident
+
+-- | Name manipulation
+
+mapName :: (Ident -> Ident) -> Term -> Term
+mapName f = f' *** id where
+    f' (Var n)                 = Var $ f n
+    f' (Pi z s x tyA tyB t)    = Pi (f z) s (f x) (f tyA) (mapName f tyB) (mapName f t)
+    f' (Lam z ty x tf t)       = Lam (f z) (f ty) (f x) (mapName f tf) (mapName f t)
+    f' (App z xf x t)          = App (f z) (f xf) (f x) (mapName f t)
+    f' (Sigma z s x tyA tyB t) = Sigma (f z) s (f x) (f tyA) (mapName f tyB) (mapName f t)
+    f' (Pair z ty x y t)       = Pair (f z) (f ty) (f x) (f y) (mapName f t)
+    f' (Proj x y z t)          = Proj (f x) (f y) (f z) (mapName f t)
+    f' (Fin z l t)             = Fin (f z) l (mapName f t)
+    f' (Tag z ty tag t)        = Tag (f z) (f ty) tag (mapName f t)
+    f' (Case x l)              = Case (f x) (map (id *** mapName f) l)
+    f' (Star i)                = Star i
+
+replaceName :: Ident -> Ident -> Term -> Term
+replaceName name name' t = mapName replace t where
+    replace n | n == name  = name'
+              | otherwise = n
+
+-- | Sort
+
+type Sort = Int
+
+above (Star i,pos) = (Star (i + 1), pos)
+
+below (Star i, pos) = (Star (i - 1), pos)
