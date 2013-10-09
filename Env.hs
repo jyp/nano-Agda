@@ -1,5 +1,7 @@
 module Env where
 
+import Common
+
 import Names
 import qualified Terms as T
 
@@ -27,24 +29,32 @@ getSort (Env c _ _) i =
     case fst (c M.! i) of
       T.Star n -> n
 
-addContext :: Env -> Ident -> Type -> Env
-addContext (Env c ei ee) i ty =
-    Env (M.insert i ty c) ei ee
+addContext :: Env -> Ident -> T.Type -> TypeError Env
+addContext (Env context ei ee) i ty = do
+    context' <-
+        case M.lookup i context of
+          Nothing -> return (M.insert i ty context)
+          Just ty' | ty == ty' -> return (M.insert i ty context)
+          Just ty' -> throw (IncompBindings i ty ty')
+    return (Env context' ei ee)
 
-typePi :: Env -> Ident -> Type -> Ident -> Ident -> T.Term -> Env
-typePi (Env context envi enve) i ty x tyA tyB =
-    let context' = M.insert i ty context
-        envi' = M.insert i (Pi x tyA tyB) envi
-    in Env context' envi' enve
+-- Intro Type in the environment
 
-typeSigma :: Env -> Ident -> Type -> Ident -> Ident -> T.Term -> Env
-typeSigma (Env context envi enve) i ty x tyA tyB =
-    let context' = M.insert i ty context
-        envi' =  M.insert i (Sigma x tyA tyB) envi
-    in Env context' envi' enve
+typePi :: Env -> Ident -> T.Type -> Ident -> Ident -> T.Term -> TypeError Env
+typePi env i ty x tyA tyB = do
+  Env context envi enve <- addContext env i ty
+  envi' <- return (M.insert i (Pi x tyA tyB) envi)
+  return (Env context envi' enve)
 
-typeFin :: Env -> Ident -> Type -> [String] -> Env
-typeFin (Env context envi enve) i ty l =
-    let context' = M.insert i ty context
-        envi' = M.insert i (Fin l) envi
-    in Env context' envi' enve
+typeSigma :: Env -> Ident -> T.Type -> Ident -> Ident -> T.Term -> TypeError Env
+typeSigma env i ty x tyA tyB = do
+  Env context envi enve <- addContext env i ty
+  envi' <- return (M.insert i (Sigma x tyA tyB) envi)
+  return (Env context envi' enve)
+
+typeFin :: Env -> Ident -> T.Type -> [String] -> TypeError Env
+typeFin env i ty l = do
+  Env context envi enve <- addContext env i ty
+  envi' <- return (M.insert i (Fin l) envi)
+  return (Env context envi' enve)
+
