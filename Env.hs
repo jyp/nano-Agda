@@ -14,15 +14,13 @@ data Definition
     | Pi Ident Ident T.Term     -- σ = (x:A)→B
     | Sigma Ident Ident T.Term  -- σ = (x:A)×B
     | Fin [String]              -- σ = { 'bla, 'bli, 'blo }
-    deriving (Show)
+    deriving (Show, Eq)
 
 type Context = M.Map Ident T.Term
 type EnvIntro = M.Map Ident Definition
 type EnvElim = M.Map Ident [Definition]
 
 data Env = Env Context EnvIntro EnvElim
-
-type Type = T.Term
 
 getSort :: Env -> Ident -> T.Sort
 getSort (Env c _ _) i =

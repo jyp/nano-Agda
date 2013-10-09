@@ -22,12 +22,14 @@ data TLoc' name ref
 
     | Star Sort                                          -- *ᵢ
 
-    deriving (Show)
+    deriving (Show, Eq)
 
 type TLoc name ref = (TLoc' name ref, Position)
 
 type Term' = TLoc' Ident Ident
 type Term = TLoc Ident Ident
+
+type Type = Term
 
 -- | Name manipulation
 
