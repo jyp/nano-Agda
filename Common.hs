@@ -4,6 +4,11 @@ import Terms
 import Names
 import Control.Monad.Error
 
+ -- General error
+
+type Err = ErrorT String IO
+
+ -- Typing error
 
 data TypeInfo
     = Unification Ident Ident String
@@ -22,3 +27,6 @@ throw = throwError
 
 catch :: TypeError a -> (TypeInfo -> TypeError a) -> TypeError a
 catch = catchError
+
+convert :: TypeError a -> Err a
+convert = undefined
