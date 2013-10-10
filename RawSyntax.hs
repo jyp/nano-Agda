@@ -38,11 +38,17 @@ data Term =
 data CaseCont = CaseCont Tag Term
   deriving (Eq,Ord,Show)
 
-convert :: (Ident,Term) -> (N.Ident, T.Term)
-convert = undefined
+toTerm :: (Ident,Term) -> N.EnvM (N.Ident, T.Term)
+toTerm = undefined
 
-convertSmt :: (Ident,Term,Term) -> (N.Ident, T.Term, T.Type)
-convertSmt = undefined
+smtToTerm :: (Ident,Term,Term) -> (N.Ident, T.Term, T.Type)
+smtToTerm (i, t, ty)=
+    let itt = do
+          (i', ty') <- toTerm (i, ty)
+          (_, t') <- toTerm (i, t)
+          return (i', t', ty')
+    in
+      N.runEnv itt
 
 getIdent :: Smt -> Ident
 getIdent (TypDec i _ ) = i
@@ -67,4 +73,4 @@ groupSmt decs =
 convertFile :: [Smt] -> Err [(N.Ident,T.Term,T.Type)]
 convertFile l = do
   decs <- groupSmt l
-  return (map convertSmt decs)
+  return (map smtToTerm decs)

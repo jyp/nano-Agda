@@ -1,28 +1,13 @@
 module Names where
 
-import Control.Applicative hiding (empty)
 import Control.Monad.State
-import Control.Arrow ((&&&))
+
+import Data.Map as M
 
 type Name = Int
 
-type FreshM = State Int
-
--- | New fresh Id
-fresh :: FreshM Name
-fresh = state ( id &&& succ )
-
-infixl 4 <.>
--- | Applies a pure value in an applicative computation
-(<.>) :: Applicative f => f (a -> b) -> a -> f b
-m <.> x = m <*> pure x
-
-runFreshM :: FreshM a -> a
-runFreshM m = evalState m 0
-
-runFreshMFrom :: Int -> FreshM a -> a
-runFreshMFrom n m = evalState m n
-
+incr :: Name -> Name
+incr n = n + 1
 
 -- | Position stuff
 
@@ -35,8 +20,30 @@ dummyPos = (-1, -1)
 
 type Ident = (Name,String,Position)
 
-freshIdent :: (String,Position) -> FreshM Ident
-freshIdent (n,pos) = state ( (\i -> (i,n,pos)) &&& succ )
+-- | Name Environment
 
-freshIdentNoPos :: String -> FreshM Ident
-freshIdentNoPos n = freshIdent (n, dummyPos)
+type NameEnv = Map String Ident
+
+type EnvM = State (NameEnv, Name)
+
+getIdent :: String -> EnvM Ident
+getIdent s = do
+  (m,_) <- get
+  return (m M.! s)
+
+freshIdent :: (String, Position) -> EnvM Ident
+freshIdent (s,p) = do
+  (m,c) <- get
+  let ident = (c,s,p)
+  let m' = M.insert s ident m
+  _ <- put (m' , incr c)
+  return ident
+
+freshIdentNoPos :: String -> EnvM Ident
+freshIdentNoPos s = freshIdent (s,dummyPos)
+
+runEnvFrom :: (NameEnv, Name) -> EnvM a -> a
+runEnvFrom s x = evalState x s
+
+runEnv :: EnvM a -> a
+runEnv = runEnvFrom (M.empty, 0)
