@@ -9,7 +9,7 @@ description:
 
         The goal of the project is to provide a minimal type-checker
         with dependent types that can be easily fiddled with.
-   
+
 license:        OtherLicense
 -- Creative Commons Attribution Share-Alike
 license-file:   LICENSE
@@ -20,27 +20,23 @@ tested-with:    GHC==7.4.1
 build-type:     Simple
 
 executable nanoAgda
-  extensions: CPP, FlexibleInstances, OverloadedStrings
   main-is: Main.hs
 
   other-modules:
-     Options
-     Basics
-     Display
-     RawSyntax
-     AbsSynToTerm
-     Terms
-     TypeChecker
      Main
+     Common
+     Env
+     Names
+     Terms
+     PPrint
+     Typing
+     Parser
+     Lexer
 
+  build-tools: alex, happy
+
+  build-depends: array
+  build-depends: containers
   build-depends: base==4.*
-  build-depends: cmdargs >= 0.8  && < 1
-  build-depends: containers>=0.4 && < 0.6
   build-depends: pretty==1.1.*
-  build-depends: parsec >= 2.1 && < 3.2
-  build-depends: BNFC-meta==0.3.*
-  build-depends: transformers >= 0.2 && < 0.4
   build-depends: mtl >= 2.0 && < 2.2
-  build-depends: filepath==1.3.*
-  build-depends: directory>=1.1 && <1.3
-
