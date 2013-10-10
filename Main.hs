@@ -11,9 +11,9 @@ import Env
 import System.Environment(getArgs)
 
 parseFile :: String -> Err [(Ident,Term,Term)]
-parseFile f =
-    let rawfile = P.main (L.alexScanTokens f) in
-    fmap R.convertFile rawfile
+parseFile f = do
+  rawfile <- P.main (L.alexScanTokens f)
+  R.convertFile rawfile
 
 parseFiles :: [String] -> Err [(Ident,Term,Term)]
 parseFiles l = do

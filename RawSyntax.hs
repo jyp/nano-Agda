@@ -1,7 +1,11 @@
 module RawSyntax where
 
+import Common
 import qualified Terms as T
 import qualified Names as N
+
+import Data.List(sortBy,groupBy)
+import Data.Ord(comparing)
 
 type Position = (Int,Int,Int)
 
@@ -34,12 +38,33 @@ data Term =
 data CaseCont = CaseCont Tag Term
   deriving (Eq,Ord,Show)
 
-convert :: (Ident,Term) -> (N.Ident,T.Term)
+convert :: (Ident,Term) -> (N.Ident, T.Term)
 convert = undefined
 
-groupSmt :: [Smt] -> [(Ident,Term,Term)]
-groupSmt = undefined
+convertSmt :: (Ident,Term,Term) -> (N.Ident, T.Term, T.Type)
+convertSmt = undefined
 
-convertFile :: [Smt] -> [(N.Ident,T.Term,T.Type)]
-convertFile l = map f $ groupSmt l where
-    f _ = undefined
+getIdent :: Smt -> Ident
+getIdent (TypDec i _ ) = i
+getIdent (Def i _ ) = i
+
+groupSmt :: [Smt] -> Err [(Ident,Term,Term)]
+groupSmt decs =
+    let decsSort = sortBy (comparing getIdent) decs
+        decsGroup = groupBy (\x y -> getIdent x == getIdent y) decsSort
+    in mapM f decsGroup where
+        f [ TypDec i t , Def _ t' ] = return (i,t,t')
+        f [ Def i t , TypDec _ t' ] = return (i,t,t')
+        f [ Def i _ ] =
+            throw $ "Definition of " ++ show i ++ " lacks a type declaration."
+        f [ TypDec i _ ] =
+            throw $ "Type declaration of " ++ show i ++ " lacks a definition."
+        f (h:_) =
+            throw $ show (getIdent h) ++ " has multiple definitions or declarations."
+        f [] = undefined
+
+
+convertFile :: [Smt] -> Err [(N.Ident,T.Term,T.Type)]
+convertFile l = do
+  decs <- groupSmt l
+  return (map convertSmt decs)
