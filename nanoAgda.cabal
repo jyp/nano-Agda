@@ -21,6 +21,7 @@ build-type:     Simple
 
 executable nanoAgda
   main-is: Main.hs
+  ghc-options: -Wall
 
   other-modules:
      Main
