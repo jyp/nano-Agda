@@ -72,7 +72,7 @@ Term :: { Term }
 Term : Ident { Var $1 }
 
  -- let i : C = (x:A)→<B> in <t>
-  | let Ident ':' Ident '=' VarType '→' Term in Term
+  | let Ident ':' Star '=' VarType '→' Term in Term
   { Pi $1 $2      $4        $6          $8   $9 $10 }
 
  -- let i : C = λx.<t'> in <t>
@@ -84,7 +84,7 @@ Term : Ident { Var $1 }
   { App $1 $2     $4    $5    $6 $7 }
 
  -- let i : C  = (x:A)×<B> in <t>
-  | let Ident ':' Ident '=' VarType Cross Term in Term
+  | let Ident ':' Star '=' VarType Cross Term in Term
   { Sigma $1 $2   $4        $6            $8   $9 $10 }
 
  -- let i : C = (x,y) in t

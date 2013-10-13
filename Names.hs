@@ -1,6 +1,7 @@
 module Names where
 
 import Control.Monad.State
+import Control.Arrow ((&&&))
 
 import Data.Map as M
 
@@ -8,6 +9,17 @@ type Name = Int
 
 incr :: Name -> Name
 incr n = n + 1
+
+type FreshM = State Name
+
+fresh :: FreshM Name
+fresh = state ( id &&& succ )
+
+runFreshFrom :: Name -> FreshM a -> a
+runFreshFrom s x = evalState x s
+
+runFresh :: FreshM a -> a
+runFresh = runFreshFrom 0
 
 -- | Position stuff
 
@@ -35,26 +47,16 @@ type Ident = (Name,String,Position)
 
 type NameEnv = Map String Ident
 
-type EnvM = State (NameEnv, Name)
+getIdent :: NameEnv -> (String,Position) -> Ident
+getIdent e (s,p) = do
+  let (c,s',_) = e M.! s in (c,s',p)
 
-getIdent :: String -> EnvM Ident
-getIdent s = do
-  (m,_) <- get
-  return (m M.! s)
+freshIdent :: NameEnv -> (String, Position) -> FreshM (NameEnv,Ident)
+freshIdent e (s,p) = do
+  name <- fresh
+  let ident = (name , s , p)
+  let m' = M.insert s ident e
+  return (m',ident)
 
-freshIdent :: (String, Position) -> EnvM Ident
-freshIdent (s,p) = do
-  (m,c) <- get
-  let ident = (c,s,p)
-  let m' = M.insert s ident m
-  _ <- put (m' , incr c)
-  return ident
-
-freshIdentNoPos :: String -> EnvM Ident
-freshIdentNoPos s = freshIdent (s,dummyPos)
-
-runEnvFrom :: (NameEnv, Name) -> EnvM a -> a
-runEnvFrom s x = evalState x s
-
-runEnv :: EnvM a -> a
-runEnv = runEnvFrom (M.empty, 0)
+freshIdentNoPos :: NameEnv -> String -> FreshM (NameEnv,Ident)
+freshIdentNoPos e s = freshIdent e (s,dummyPos)
