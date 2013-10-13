@@ -16,6 +16,7 @@ data TypeInfo
     | CheckT Term Type
     | CheckI Ident Type
     | IncompBindings Ident Term Term
+    | Abstract Type
     | UnknownError String
 
 instance Error TypeInfo where
@@ -45,4 +46,8 @@ convert (Left e) =
           throw $
           "Type error during the checking of "
           ++ show i ++ " with type " ++ (show $ term ty)
+      Abstract ty ->
+          throw $
+          "This term is abstract and can't be decomposed : "
+          ++ show ty
       UnknownError s -> throw s
