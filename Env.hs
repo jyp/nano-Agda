@@ -25,6 +25,7 @@ type EnvIntro = M.Map Ident Definition
 type EnvElim = M.Map Ident [Definition]
 
 data Env = Env Context EnvIntro EnvElim
+    deriving (Show, Eq)
 
 getSort :: Env -> Ident -> T.Sort
 getSort (Env c _ _) i =

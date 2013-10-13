@@ -9,6 +9,7 @@ import Terms
 import Typing
 import Env
 import System.Environment(getArgs)
+import Control.Monad.Error
 
 parseFile :: String -> Err [(Ident,Term,Term)]
 parseFile f = do
@@ -25,9 +26,12 @@ checkFiles decs = do
   decsT <- mapM (convert . checkDec) decs
   return decsT
 
+main :: IO ()
 main = do
   args <- getArgs
   files <- mapM readFile args
   let decs = parseFiles files
-  let results = decs >>= checkFiles
-  return ()
+  results <- runErrorT ( decs >>= checkFiles )
+  case results of
+    Left x -> print x
+    Right x -> print x
