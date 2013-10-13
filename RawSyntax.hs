@@ -72,8 +72,8 @@ groupSmt decs =
     let decsSort = sortBy (comparing getIdent) decs
         decsGroup = groupBy (\x y -> getIdent x == getIdent y) decsSort
     in mapM f decsGroup where
-        f [ TypDec i t , Def _ t' ] = return (i,t,t')
-        f [ Def i t , TypDec _ t' ] = return (i,t,t')
+        f [ TypDec i ty , Def _ t ] = return (i,t,ty)
+        f [ Def i t , TypDec _ ty ] = return (i,t,ty)
         f [ Def i _ ] =
             throw $ "Definition of " ++ show i ++ " lacks a type declaration."
         f [ TypDec i _ ] =

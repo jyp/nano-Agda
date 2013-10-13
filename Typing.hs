@@ -7,7 +7,7 @@ import Env(Env)
 import qualified Env as Env
 
 
-checkDec :: (Ident,Term,Term) -> TypeError (Env,Term)
+checkDec :: (Ident,Term,Type) -> TypeError (Env,Term,Type)
 checkDec = undefined
 
 checkSort :: Env -> Ident -> Sort -> TypeError ()

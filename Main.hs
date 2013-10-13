@@ -20,7 +20,7 @@ parseFiles l = do
   l' <- mapM parseFile l
   return (concat l')
 
-checkFiles :: [(Ident,Term,Type)] -> Err [(Env,Term)]
+checkFiles :: [(Ident,Term,Type)] -> Err [(Env, Term, Type)]
 checkFiles decs = do
   decsT <- mapM (convert . checkDec) decs
   return decsT
