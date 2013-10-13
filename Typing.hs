@@ -16,8 +16,22 @@ checkSort e i s =
     if is < s then return ()
     else throw (CheckI i (Star s,dummyPos))
 
+-- | Type checking
 
 check :: Env -> Term -> Type -> TypeError (Env,Term)
+
+-- Vars
+check e t@(Var i, _) ty = do
+    () <- unify e (Env.getType e i) ty
+    return (e, t)
+
+-- *ᵢ
+-- TODO : Not sure if it's possible to have something else as type.
+check e t@(Star s, _) ty@(Star s', _) =
+    if s < s' then return (e, t)
+    else throw $ CheckT t ty
+
+-- | Types
 
 -- Π
 check e (Pi i s x tyA tyB t , pos) ty =
@@ -47,6 +61,23 @@ check e (Fin i l t , pos) ty =
     eWithi <- Env.typeFin e i star l
     check eWithi t ty
 
--- let i : T = (x,y) in t : C
-check e (Pair i tT x y t , pos) ty =
-    undefined
+-- | Eliminator
+
+-- let i = f x in <t>
+
+-- let (x,y) = z in <t>
+
+-- case x do { 'tagᵢ → <tᵢ> | i = 1..n }
+
+-- | Introductions
+
+-- let i : S = λx.<t'> in <t>
+
+-- let i : S = (x,y) in <t>
+
+-- let i : T = 'tagᵢ in <t>
+
+-- | Unification
+
+unify :: Env -> Term -> Term -> TypeError ()
+unify e t t' = undefined
