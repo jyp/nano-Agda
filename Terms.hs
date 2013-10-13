@@ -8,12 +8,12 @@ data TLoc' name ref
 
     = Var ref
 
-    | Pi  name Sort ref ref (TLoc name ref) (TLoc name ref)   -- let i : C = Π(x:A) B = (x:A)→<B> in <t>
-    | Lam name ref ref (TLoc name ref) (TLoc name ref)   -- let i : C = λx.<t'> in <t>
+    | Pi  name Sort ref ref (TLoc name ref) (TLoc name ref)   -- let i : S = Π(x:A) B = (x:A)→<B> in <t>
+    | Lam name ref ref (TLoc name ref) (TLoc name ref)   -- let i : S = λx.<t'> in <t>
     | App name ref ref (TLoc name ref)                   -- let i = f x in <t>
 
-    | Sigma name Sort ref ref (TLoc name ref) (TLoc name ref) -- let i : C = Σ(x:A) B = (x:A)×B in t
-    | Pair  name ref ref ref (TLoc name ref)             -- let i : C = (x,y) in <t>
+    | Sigma name Sort ref ref (TLoc name ref) (TLoc name ref) -- let i : S = Σ(x:A) B = (x:A)×B in t
+    | Pair  name ref ref ref (TLoc name ref)             -- let i : S = (x,y) in <t>
     | Proj  name name ref (TLoc name ref)                -- let (x,y) = z in <t>
 
     | Fin name [String] (TLoc name ref)                  -- let i = { 'tagᵢ | i = 1..n } in <t>
