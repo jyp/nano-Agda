@@ -47,10 +47,12 @@ Smt : Ident '::' Term  { TypDec $1 $3 }
     | Ident '=' Term  { Def $1 $3 }
 
 Ident :: { Ident }
-Ident : T_Ident { case $1 of PT pos (T_Ident x) -> Ident pos x }
+Ident :
+  T_Ident { case $1 of PT pos (T_Ident x) -> Ident (pos,x) }
 
 Tag :: { Tag }
-Tag : T_Tag     { case $1 of PT pos (T_Tag x) -> TTag pos x }
+Tag :
+  T_Tag   { case $1 of PT pos (T_Tag x) -> TTag (pos,x) }
 
 
 VarType :: { VarType }

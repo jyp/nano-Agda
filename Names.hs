@@ -11,10 +11,21 @@ incr n = n + 1
 
 -- | Position stuff
 
-type Position = (Int,Int)
+data Position
+    = Range Int Int Int Int
+    | Point Int Int
+      deriving (Ord,Eq)
 
 dummyPos :: Position
-dummyPos = (-1, -1)
+dummyPos = Point (-1) (-1)
+
+instance Show Position where
+    show (Point l c) = show l ++ ":" ++ show c
+    show (Range l1 c1 l2 c2) | l1 == l2 =
+        show l1 ++ ":" ++  show c1 ++ "." ++ show c2
+    show (Range l1 c1 l2 c2) =
+        show l1 ++ "." ++ show l2 ++ ":" ++
+        show c1 ++ "." ++ show c2
 
 -- | Identifier aka, Names with source informations
 

@@ -7,10 +7,18 @@ import qualified Names as N
 import Data.List(sortBy,groupBy)
 import Data.Ord(comparing)
 
+-- | The abstract syntax tree.
+
 type Position = (Int,Int,Int)
 
-data Tag = TTag Position String deriving (Eq,Ord,Show)
-data Ident = Ident Position String deriving (Eq,Ord,Show)
+pointPos :: Position -> N.Position
+pointPos (_,l,c) = N.Point l c
+
+rangePos :: Position -> Position -> N.Position
+rangePos (_,l1,c1) (_,l2,c2) = N.Range l1 c1 l2 c2
+
+newtype Tag = TTag (Position,String) deriving (Eq,Ord,Show)
+newtype Ident = Ident (Position,String) deriving (Eq,Ord,Show)
 
 data Smt =
    TypDec Ident Term
@@ -38,8 +46,13 @@ data Term =
 data CaseCont = CaseCont Tag Term
   deriving (Eq,Ord,Show)
 
+-- | Main translation function
+
 toTerm :: (Ident,Term) -> N.EnvM (N.Ident, T.Term)
 toTerm = undefined
+
+
+-- | Utility translation functions
 
 smtToTerm :: (Ident,Term,Term) -> (N.Ident, T.Term, T.Type)
 smtToTerm (i, t, ty)=
