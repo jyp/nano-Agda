@@ -10,6 +10,11 @@ import Numeric (showIntAtBase)
 indentation :: Int
 indentation = 2
 
+($+>) :: Doc -> Doc -> Doc
+d $+> d' = hang d indentation d'
+
+infixl 9 $+>
+
 ident :: Ident -> Doc
 ident (i,n,_) = text n <> int i
 
@@ -40,8 +45,7 @@ pairP x y = parens (ident x <> text ", " <> ident y)
 -- λ(x:A).t
 lamP :: Ident -> Term -> Doc
 lamP x t =
-    hang (char 'λ' <> ident x <> char '.')
-         indentation (term t)
+    (char 'λ' <> ident x <> char '.') $+> term t
 
 -- case x do { 'tagᵢ → tᵢ | i = 1..n }
 caseP :: Ident -> [(String, Term)] -> Doc
@@ -55,9 +59,8 @@ caseP x l =
 -- let i = d in t
 letP :: Doc -> Doc -> Doc -> Doc
 letP i d t =
-    text "let" <+> i $+$
-    nest indentation d $+$ text "in" $+$
-    nest indentation t
+    sep [text "let" <+> i <+> text "=" , d , text "in" ] $+$
+    t
 
 letP1 :: Ident -> Doc -> Doc -> Doc
 letP1 i = letP (ident i)
@@ -99,7 +102,15 @@ term (t,_) =
           letP2 i1 i2 (ident z) (term t')
 
       Fin i l t' ->
-          letP1 i (finP l) (term t')
+          letP1 i (braces $ finP l) (term t')
       Tag i ty s t' -> letP (vartype i ty) (text s) (term t')
       Case x l -> caseP x l
       Star i -> sort i
+
+smt :: (Ident,Term,Term) -> Doc
+smt (i,t,ty) =
+    (ident i <+> text "::") $+> term ty $+$
+    (ident i <+> text "=") $+> term t
+
+smts :: [(Ident,Term,Type)] -> Doc
+smts l = sep $ map smt l
