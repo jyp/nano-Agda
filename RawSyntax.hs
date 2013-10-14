@@ -143,15 +143,13 @@ toTerm e t = do
 
 -- | Utility translation functions
 
-smtToTerm :: N.NameEnv -> (Ident,Term,Term) -> (N.NameEnv, (N.Ident, T.Term, T.Type))
-smtToTerm e (i, t, ty)=
-    let itt = do
-          (e', i') <- freshIdent e i
-          ty' <- toTerm e ty
-          t' <- toTerm e t
-          return (e', (i', t', ty'))
-    in
-      N.runFresh itt
+smtToTerm :: N.NameEnv -> (Ident,Term,Term) ->
+            N.FreshM (N.NameEnv, (N.Ident, T.Term, T.Type))
+smtToTerm e (i, t, ty) = do
+    (e', i') <- freshIdent e i
+    ty' <- toTerm e ty
+    t' <- toTerm e t
+    return (e', (i', t', ty'))
 
 smtGetIdent :: Smt -> Ident
 smtGetIdent (TypDec i _ ) = i
@@ -181,10 +179,10 @@ convertFile :: [Smt] -> Err [(N.Ident,T.Term,T.Type)]
 convertFile l = do
   let e = Map.empty
   decs <- groupSmt l
-  let (_, decs') = scanfoldl smtToTerm e decs []
+  let (_, decs') = N.runFresh $ scanfoldl smtToTerm e decs []
   return $ reverse $ decs'
       where
-        scanfoldl _ e [] acc = (e,acc)
-        scanfoldl f e (h:t) acc =
-            let (e',h') = f e h in
+        scanfoldl _ e [] acc = return (e,acc)
+        scanfoldl f e (h:t) acc = do
+            (e',h') <- f e h
             scanfoldl f e' t (h':acc)
