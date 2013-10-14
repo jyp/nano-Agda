@@ -157,10 +157,13 @@ smtGetIdent :: Smt -> Ident
 smtGetIdent (TypDec i _ ) = i
 smtGetIdent (Def i _ ) = i
 
+smtGetIdString :: Smt -> String
+smtGetIdString = (\(Ident (_,i)) -> i) . smtGetIdent
+
 groupSmt :: [Smt] -> Err [(Ident,Term,Term)]
 groupSmt decs =
-    let decsSort = sortBy (comparing smtGetIdent) decs
-        decsGroup = groupBy (\x y -> smtGetIdent x == smtGetIdent y) decsSort
+    let decsSort = sortBy (comparing smtGetIdString) decs
+        decsGroup = groupBy (\x y -> smtGetIdString x == smtGetIdString y) decsSort
     in mapM f decsGroup where
         f [ TypDec i ty , Def _ t ] = return (i,t,ty)
         f [ Def i t , TypDec _ ty ] = return (i,t,ty)
@@ -170,7 +173,7 @@ groupSmt decs =
             throw $ "Type declaration of " ++ show i ++ " lacks a definition."
         f (h:_) =
             throw $ show (smtGetIdent h) ++ " has multiple definitions or declarations."
-        f [] = undefined
+        f [] = error "empty group int statements."
 
 
 
