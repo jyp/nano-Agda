@@ -8,7 +8,7 @@ import qualified Env as Env
 
 
 checkDec :: (Ident,Term,Term) -> TypeError (Env,Ident,Ident)
-checkDec = undefined
+checkDec = error "checkDec"
 
 -- | Type checking
 
@@ -20,7 +20,7 @@ check e (Var i, _) ty = do
     return (e, i)
 
 -- *ᵢ
-check e (Star i ity t , _) ty = undefined
+check e (Star i ity t , _) ty = error "checkStar"
 
 -- | Types
 
@@ -70,7 +70,7 @@ check e (Fin i ity l t , _) ty =
 
 
 unify :: Env -> Type -> Type -> TypeError ()
-unify e t t' = undefined
+unify e t t' = error "unify"
 
 unify' :: Env -> Type -> Ident -> TypeError ()
 unify' e t i = unify e t (Ident i)

@@ -82,7 +82,7 @@ addAlias env x y =
     addBinding env x (Alias y) (getType env y)
 
 addSortBelow :: Env -> Ident -> TypeError (Env,Ident)
-addSortBelow = undefined
+addSortBelow = error "addSortBelow"
 
 -- Intro Type in the environment
 
