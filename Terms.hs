@@ -57,5 +57,5 @@ type Sort = Int
 
 -- | Types
 
-data Type = Sort Sort | Ident Ident
+data Type = Sort Sort | Ident Ident | Below Type
             deriving (Show,Eq)

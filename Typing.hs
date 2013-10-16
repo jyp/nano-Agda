@@ -1,3 +1,4 @@
+{-# LANGUAGE DoAndIfThenElse #-}
 module Typing where
 
 import Common
@@ -7,16 +8,22 @@ import Env(Env,Definition)
 import qualified Env as Env
 
 
-checkDec :: (Ident,Term,Term) -> TypeError (Env,Ident,Ident)
-checkDec = error "checkDec"
+checkDec :: Env -> (Ident,Term,Term) -> TypeError (Env,(Ident,Ident))
+checkDec e (_,t,ty) = do
+  (e', ity) <- check e ty (Sort 10) -- HACK
+  (e'', it) <- check e' t (Ident ity)
+  return (e'', (it, ity))
 
 -- | Type checking
 
-check :: Env -> Term -> Ident -> TypeError (Env,Ident)
+
+
+check :: Env -> Term -> Type -> TypeError (Env,Ident)
+
 
 -- Vars
 check e (Var i, _) ty = do
-    () <- unify' e (Env.getType e i) ty
+    () <- unify e (Env.getType e i) ty
     return (e, i)
 
 -- *ᵢ
@@ -26,26 +33,27 @@ check e (Star i ity t , _) ty = error "checkStar"
 
 -- Π
 check e (Pi i ity x tyA tyB t , _) ty = do
-  (eWithity',ity') <- Env.addSortBelow e ity
-  () <- unify' eWithity' (Env.getType eWithity' tyA) ity'
-  eWithxity' <- Env.addContext eWithity' x (Ident tyA)
-  _ <- check eWithxity' tyB ity'
+  let ity' = (Below (Ident ity))
+  () <- unify e (Env.getType e tyA) ity'
+  eWithx <- Env.addContext e x (Ident tyA)
+  _ <- check eWithx tyB ity'
   eWithi <- Env.typePi e i (Ident ity) x tyA tyB
   check eWithi t ty
 
 -- Σ
 check e (Sigma i ity x tyA tyB t , _) ty = do
-  (eWithity',ity') <- Env.addSortBelow e ity
-  () <- unify' eWithity' (Env.getType eWithity' tyA) ity'
-  eWithxity' <- Env.addContext eWithity' x (Ident tyA)
-  _ <- check eWithxity' tyB ity'
+  let ity' = (Below (Ident ity))
+  () <- unify e (Env.getType e tyA) ity'
+  eWithx <- Env.addContext e x (Ident tyA)
+  _ <- check eWithx tyB ity'
   eWithi <- Env.typeSigma e i (Ident ity) x tyA tyB
   check eWithi t ty
 
 -- Fin
-check e (Fin i ity l t , _) ty =
-  let s = Env.getSort e ity in
-  if s < 1 then throw $ Check i ity "Sort smaller than one."
+check e (Fin i ity l t , _) ty = do
+  s <- Env.normalizeSort e ity
+  if s < 1 then
+      throw $ Check i ity "Sort smaller than one."
   else do
     eWithi <- Env.typeFin e i (Ident ity) l
     check eWithi t ty

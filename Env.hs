@@ -36,15 +36,8 @@ type EnvElim = M.Map Ident [Definition]
 data Env = Env Context EnvIntro EnvElim
     deriving (Show, Eq)
 
-getSort :: Env -> Ident -> T.Sort
-getSort (Env c ei _) i =
-    f $ (c M.! i) where
-        f (T.Ident x) = case ei M.! x of
-            Star n -> n
-            Alias x' -> f (T.Ident x')
-            _ -> error $
-                "A sort was expected for variable " ++ show x
-        f (T.Sort s) = s
+empty :: Env
+empty = Env M.empty M.empty M.empty
 
 getType :: Env -> Ident -> T.Type
 getType (Env c _ _) i = c M.! i
@@ -81,8 +74,23 @@ addAlias :: Env -> Ident -> Ident -> TypeError Env
 addAlias env x y =
     addBinding env x (Alias y) (getType env y)
 
-addSortBelow :: Env -> Ident -> TypeError (Env,Ident)
-addSortBelow = error "addSortBelow"
+-- | Verification functions
+
+
+-- Utility function to normalize (and verify) a sort.
+normalizeSort :: Env -> Ident -> TypeError T.Sort
+normalizeSort env@(Env _ e _) i =
+    case e M.! i of
+      Star s -> return s
+      Alias x -> normalizeSort env x
+      _ -> throw $ Abstract i
+
+normalizeSort' :: Env -> T.Type -> TypeError T.Sort
+normalizeSort' e ty =
+    case ty of
+      T.Sort s -> return s
+      T.Below i -> fmap (\s -> s-1) (normalizeSort' e i)
+      T.Ident i -> normalizeSort e i
 
 -- Intro Type in the environment
 
