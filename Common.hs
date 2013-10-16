@@ -50,3 +50,12 @@ convert (Left e) =
           "Types" ++ show ty ++ " and " ++ show ty' ++
            " for variable " ++ show i ++ " are incompatibles."
       UnknownError s -> throw s
+
+
+-- A fold/map hybrid to pass along the environment.
+scanfoldl :: Monad m => (env -> a -> m (env, b)) -> env -> [a] -> m (env, [b])
+scanfoldl = aux [] where
+    aux acc _ e [] = return (e,acc)
+    aux acc f e (h:t) = do
+      (e',h') <- f e h
+      aux (h':acc) f e' t

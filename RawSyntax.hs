@@ -185,10 +185,5 @@ convertFile :: [Smt] -> Err [(N.Ident,T.Term,T.Term)]
 convertFile l = do
   let e = Map.empty
   decs <- groupSmt l
-  let (_, decs') = N.runFresh $ scanfoldl smtToTerm e decs []
+  let (_, decs') = N.runFresh $ scanfoldl smtToTerm e decs
   return $ reverse $ decs'
-      where
-        scanfoldl _ e [] acc = return (e,acc)
-        scanfoldl f e (h:t) acc = do
-            (e',h') <- f e h
-            scanfoldl f e' t (h':acc)
