@@ -18,9 +18,18 @@ data Definition
     | Pi Ident Ident T.Term     -- σ = (x:A)→B
     | Sigma Ident Ident T.Term  -- σ = (x:A)×B
     | Fin [String]              -- σ = { 'bla, 'bli, 'blo }
+    | Star Int                  -- σ = *ᵢ
     deriving (Show, Eq)
 
-type Context = M.Map Ident T.Term
+above, below :: Definition -> Definition
+above x = case x of
+            Star i -> Star (i+1)
+            _ -> error "Expected a sort"
+below x = case x of
+            Star i -> Star (i-1)
+            _ -> error "Expected a sort"
+
+type Context = M.Map Ident T.Type
 type EnvIntro = M.Map Ident Definition
 type EnvElim = M.Map Ident [Definition]
 
@@ -28,9 +37,14 @@ data Env = Env Context EnvIntro EnvElim
     deriving (Show, Eq)
 
 getSort :: Env -> Ident -> T.Sort
-getSort (Env c _ _) i =
-    case fst (c M.! i) of
-      T.Star n -> n
+getSort (Env c ei _) i =
+    f $ (c M.! i) where
+        f (T.Ident x) = case ei M.! x of
+            Star n -> n
+            Alias x' -> f (T.Ident x')
+            _ -> error $
+                "A sort was expected for variable " ++ show x
+        f (T.Sort s) = s
 
 getType :: Env -> Ident -> T.Type
 getType (Env c _ _) i = c M.! i
@@ -66,6 +80,9 @@ addBinding env i t ty = do
 addAlias :: Env -> Ident -> Ident -> TypeError Env
 addAlias env x y =
     addBinding env x (Alias y) (getType env y)
+
+addSortBelow :: Env -> Ident -> TypeError (Env,Ident)
+addSortBelow = undefined
 
 -- Intro Type in the environment
 

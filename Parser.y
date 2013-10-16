@@ -72,7 +72,7 @@ Term :: { Term }
 Term : Ident { Var $1 }
 
  -- let i : C = (x:A)→<B> in <t>
-  | let Ident ':' Star '=' VarType '→' Term in Term
+  | let Ident ':' Ident '=' VarType '→' Term in Term
   { Pi $1 $2      $4        $6          $8   $9 $10 }
 
  -- let i : C = λx.<t'> in <t>
@@ -84,7 +84,7 @@ Term : Ident { Var $1 }
   { App $1 $2     $4    $5    $6 $7 }
 
  -- let i : C  = (x:A)×<B> in <t>
-  | let Ident ':' Star '=' VarType Cross Term in Term
+  | let Ident ':' Ident '=' VarType Cross Term in Term
   { Sigma $1 $2   $4        $6            $8   $9 $10 }
 
  -- let i : C = (x,y) in t
@@ -95,9 +95,9 @@ Term : Ident { Var $1 }
   | let Pair  '=' Ident in Term
   { Proj $1 $2    $4    $5 $6 }
 
- -- let i = { 'tagᵢ | i = 1..n } in <t>
-  | let Ident '=' '{' TagsOrEmpty '}' in Term
-  { Fin $1 $2         $5              $7 $8 }
+ -- let i : T = { 'tagᵢ | i = 1..n } in <t>
+  | let Ident ':' Ident '=' '{' TagsOrEmpty '}' in Term
+  { Fin $1 $2     $4            $7              $9 $10 }
 
  -- let i : T = 'tagᵢ in <t>
   | let Ident ':' Ident '=' Tag in Term
@@ -107,8 +107,9 @@ Term : Ident { Var $1 }
   | case Ident '{' ListCaseCont '}'
   { Case $1 $2     $4 }
 
- -- *ᵢ
-  | Star { Star $1 }
+ -- let i = *ᵢ in <t>
+  | let Ident '=' Star in Term
+  { Star $1 $2   $4   $5 $6 }
 
 TagsOrEmpty :: { [Tag] }
 TagsOrEmpty : {- empty -} { [] } | Tags { $1 }

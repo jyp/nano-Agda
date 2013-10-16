@@ -3,62 +3,51 @@ module Typing where
 import Common
 import Names
 import Terms
-import Env(Env)
+import Env(Env,Definition)
 import qualified Env as Env
 
 
-checkDec :: (Ident,Term,Type) -> TypeError (Env,Term,Type)
+checkDec :: (Ident,Term,Term) -> TypeError (Env,Ident,Ident)
 checkDec = undefined
-
-checkSort :: Env -> Ident -> Sort -> TypeError ()
-checkSort e i s =
-    let is = Env.getSort e i in
-    if is < s then return ()
-    else throw (CheckI i (Star s,dummyPos))
 
 -- | Type checking
 
-check :: Env -> Term -> Type -> TypeError (Env,Term)
+check :: Env -> Term -> Ident -> TypeError (Env,Ident)
 
 -- Vars
-check e t@(Var i, _) ty = do
-    () <- unify e (Env.getType e i) ty
-    return (e, t)
+check e (Var i, _) ty = do
+    () <- unify' e (Env.getType e i) ty
+    return (e, i)
 
 -- *ᵢ
--- TODO : Not sure if it's possible to have something else as type.
-check e t@(Star s, _) ty@(Star s', _) =
-    if s < s' then return (e, t)
-    else throw $ CheckT t ty
+check e (Star i ity t , _) ty = undefined
 
 -- | Types
 
 -- Π
-check e (Pi i s x tyA tyB t , pos) ty =
-    let ttyA = (Var tyA, pos)
-        star = (Star s, pos)
-    in do
-    () <- checkSort e tyA s
-    eWithx <- Env.addContext e x ttyA
-    _ <- check eWithx tyB (below star)
-    eWithi <- Env.typePi e i star x tyA tyB
-    check eWithi t ty
+check e (Pi i ity x tyA tyB t , _) ty = do
+  (eWithity',ity') <- Env.addSortBelow e ity
+  () <- unify' eWithity' (Env.getType eWithity' tyA) ity'
+  eWithxity' <- Env.addContext eWithity' x (Ident tyA)
+  _ <- check eWithxity' tyB ity'
+  eWithi <- Env.typePi e i (Ident ity) x tyA tyB
+  check eWithi t ty
 
 -- Σ
-check e (Sigma i s x tyA tyB t , pos) ty =
-    let ttyA = (Var tyA, pos)
-        star = (Star s, pos)
-    in do
-    () <- checkSort e tyA s
-    eWithx <- Env.addContext e x ttyA
-    _ <- check eWithx tyB (below star)
-    eWithi <- Env.typeSigma e i star x tyA tyB
-    check eWithi t ty
+check e (Sigma i ity x tyA tyB t , _) ty = do
+  (eWithity',ity') <- Env.addSortBelow e ity
+  () <- unify' eWithity' (Env.getType eWithity' tyA) ity'
+  eWithxity' <- Env.addContext eWithity' x (Ident tyA)
+  _ <- check eWithxity' tyB ity'
+  eWithi <- Env.typeSigma e i (Ident ity) x tyA tyB
+  check eWithi t ty
 
 -- Fin
-check e (Fin i l t , pos) ty =
-    let star = (Star 1, pos) in do
-    eWithi <- Env.typeFin e i star l
+check e (Fin i ity l t , _) ty =
+  let s = Env.getSort e ity in
+  if s < 1 then throw $ Check i ity "Sort smaller than one."
+  else do
+    eWithi <- Env.typeFin e i (Ident ity) l
     check eWithi t ty
 
 -- | Eliminator
@@ -79,5 +68,12 @@ check e (Fin i l t , pos) ty =
 
 -- | Unification
 
-unify :: Env -> Term -> Term -> TypeError ()
+
+unify :: Env -> Type -> Type -> TypeError ()
 unify e t t' = undefined
+
+unify' :: Env -> Type -> Ident -> TypeError ()
+unify' e t i = unify e t (Ident i)
+
+unifyId :: Env -> Ident -> Ident -> TypeError ()
+unifyId e i i' = unify e (Ident i) (Ident i')

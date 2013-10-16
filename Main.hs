@@ -17,7 +17,7 @@ parseFiles l = do
   l' <- mapM (P.main . L.alexScanTokens) l
   return (concat l')
 
-checkFiles :: [(Ident,Term,Type)] -> Err [(Env, Term, Type)]
+checkFiles :: [(Ident,Term,Term)] -> Err [(Env, Ident, Ident)]
 checkFiles decs = do
   decsT <- mapM (convert . checkDec) decs
   return decsT

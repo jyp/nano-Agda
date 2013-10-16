@@ -13,10 +13,9 @@ type Err = ErrorT String IO
 
 data TypeInfo
     = Unification Ident Ident
-    | CheckT Term Type
-    | CheckI Ident Type
-    | IncompBindings Ident Term Term
-    | Abstract Type
+    | Check Ident Ident String
+    | IncompBindings Ident Type Type
+    | Abstract Ident
     | UnknownError String
 
 instance Error TypeInfo where
@@ -38,16 +37,16 @@ convert (Left e) =
           throw $
           "Type error during the unification of "
           ++ show x ++ " and " ++ show y
-      CheckT t ty ->
+      Check i ty s  ->
           throw $
           "Type error during the checking of "
-          ++ (show $ term t) ++ " with type " ++ (show $ term ty)
-      CheckI i ty ->
-          throw $
-          "Type error during the checking of "
-          ++ show i ++ " with type " ++ (show $ term ty)
+          ++ show i ++ " with type " ++ show ty ++ " : " ++ s
       Abstract ty ->
           throw $
           "This term is abstract and can't be decomposed : "
           ++ show ty
+      IncompBindings i ty ty' ->
+          throw $
+          "Types" ++ show ty ++ " and " ++ show ty' ++
+           " for variable " ++ show i ++ " are incompatibles."
       UnknownError s -> throw s

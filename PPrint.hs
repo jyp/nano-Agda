@@ -88,29 +88,29 @@ term (t,_) =
       Var i -> ident i
 
       Pi i s x tyA tyB t' ->
-          letP (varsort i s) (piP x tyA tyB) (term t')
+          letP (vartype i s) (piP x tyA tyB) (term t')
       Lam i ty x tfun t' ->
           letP (vartype i ty) (lamP x tfun) (term t')
       App i f x t' ->
           letP1 i (ident f <+> ident x) (term t')
 
       Sigma i s x tyA tyB t' ->
-          letP (varsort i s) (sigmaP x tyA tyB) (term t')
+          letP (vartype i s) (sigmaP x tyA tyB) (term t')
       Pair i ty x y t' ->
           letP (vartype i ty) (pairP x y) (term t')
       Proj i1 i2 z t' ->
           letP2 i1 i2 (ident z) (term t')
 
-      Fin i l t' ->
-          letP1 i (braces $ finP l) (term t')
+      Fin i s l t' ->
+          letP (vartype i s) (braces $ finP l) (term t')
       Tag i ty s t' -> letP (vartype i ty) (text s) (term t')
       Case x l -> caseP x l
-      Star i -> sort i
+      Star i s t' -> letP1 i (sort s) (term t')
 
 smt :: (Ident,Term,Term) -> Doc
 smt (i,t,ty) =
     (ident i <+> text "::") $+> term ty $+$
     (ident i <+> text "=") $+> term t
 
-smts :: [(Ident,Term,Type)] -> Doc
+smts :: [(Ident,Term,Term)] -> Doc
 smts l = sep $ map smt l
