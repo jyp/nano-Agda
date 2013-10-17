@@ -139,6 +139,7 @@ thenM :: Err a -> (a -> Err b) -> Err b
 thenM = (>>=)
 
 parseError :: [Token] -> Err a
+parseError [] = throwError $ text "Syntax error." -- TODO
 parseError ts =
   throwError $
   text "Syntax error at" <+>
