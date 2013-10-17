@@ -12,7 +12,7 @@ type Err = ErrorT String IO
  -- Typing error
 
 data TypeInfo
-    = Unification Ident Ident
+    = Unification Type Type
     | Check Ident Ident String
     | IncompBindings Ident Type Type
     | Abstract Ident

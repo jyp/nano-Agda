@@ -4,7 +4,7 @@ module Typing where
 import Common
 import Names
 import Terms
-import Env(Env,Definition)
+import Env(Env)
 import qualified Env as Env
 
 
@@ -83,10 +83,31 @@ check e (Fin i ity l t , _) ty = do
 
 
 unify :: Env -> Type -> Type -> TypeError ()
-unify e t t' = error "unify"
+unify e t t' =
+    case t' of
+      Ident i' -> unify' e t i'
+      Sort _ -> unifySort e t t'
+      Below _ -> unifySort e t t'
 
 unify' :: Env -> Type -> Ident -> TypeError ()
-unify' e t i = unify e t (Ident i)
+unify' e t i =
+    case t of
+      Ident i' -> unifyId e i' i
+      Sort _ -> unifySort e t (Ident i)
+      Below _ -> unifySort e t (Ident i)
 
 unifyId :: Env -> Ident -> Ident -> TypeError ()
-unifyId e i i' = unify e (Ident i) (Ident i')
+unifyId _ i i' | i == i' = return ()
+unifyId e i i' = do
+  d <- Env.getIntro e i
+  d' <- Env.getIntro e i'
+  case (d,d') of
+    (Env.Star s, Env.Star s') | s <= s' -> return ()
+    _ -> error "unify Idents"
+
+unifySort :: Env -> Type -> Type -> TypeError ()
+unifySort e t t' = do
+  s <- Env.normalizeSort' e t
+  s' <- Env.normalizeSort' e t'
+  if s <= s' then return ()
+  else throw $ Unification t t'
