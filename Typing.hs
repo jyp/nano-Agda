@@ -12,7 +12,8 @@ checkDec :: Env -> (Ident,Term,Term) -> TypeError (Env,(Ident,Ident,Ident))
 checkDec e (i,t,ty) = do
   (e', ity) <- check e ty (Sort 10) -- HACK
   (e'', it) <- check e' t (Ident ity)
-  return (e'', (i, it, ity))
+  e_i <- Env.addBinding e'' i (Env.Alias it) (Ident ity)
+  return (e_i, (i, it, ity))
 
 -- | Type checking
 
