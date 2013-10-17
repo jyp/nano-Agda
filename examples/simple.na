@@ -1,0 +1,13 @@
+
+voidfin :: let i = * in i
+voidfin =
+  let i = * in
+  let fin : i = { } in fin
+
+-- voidpair :: let i = *2 in i
+-- voidpair =
+--   let i = * in
+--   let i2 = *2 in
+--   let fin : i = {} in
+--   let pair : i2 = (x:fin) × voidfin in
+--   pair
