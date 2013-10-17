@@ -23,18 +23,22 @@ check :: Env -> Term -> Type -> TypeError (Env,Ident)
 
 -- Vars
 check e (Var i, _) ty = do
-    () <- unify e (Env.getType e i) ty
-    return (e, i)
+  i_ty <- Env.getType e i
+  () <- unify e i_ty ty
+  return (e, i)
 
 -- *ᵢ
-check e (Star i ity t , _) ty = error "checkStar"
+check e (Star i s t , _) ty = do
+  eWithi <- Env.addBinding e i (Env.Star s) (Sort (s+1))
+  check eWithi t ty
 
 -- | Types
 
 -- Π
 check e (Pi i ity x tyA tyB t , _) ty = do
   let ity' = (Below (Ident ity))
-  () <- unify e (Env.getType e tyA) ity'
+  tyA_ty <- Env.getType e tyA
+  () <- unify e tyA_ty ity' -- subsorting issue
   eWithx <- Env.addContext e x (Ident tyA)
   _ <- check eWithx tyB ity'
   eWithi <- Env.typePi e i (Ident ity) x tyA tyB
@@ -43,7 +47,8 @@ check e (Pi i ity x tyA tyB t , _) ty = do
 -- Σ
 check e (Sigma i ity x tyA tyB t , _) ty = do
   let ity' = (Below (Ident ity))
-  () <- unify e (Env.getType e tyA) ity'
+  tyA_ty <- Env.getType e tyA
+  () <- unify e tyA_ty ity' -- subsorting issue
   eWithx <- Env.addContext e x (Ident tyA)
   _ <- check eWithx tyB ity'
   eWithi <- Env.typeSigma e i (Ident ity) x tyA tyB

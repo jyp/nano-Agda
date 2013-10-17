@@ -29,9 +29,9 @@ below x = case x of
             Star i -> Star (i-1)
             _ -> error "Expected a sort"
 
-type Context = M.Map Ident T.Type
-type EnvIntro = M.Map Ident Definition
-type EnvElim = M.Map Ident [Definition]
+type Context = M.Map Name T.Type
+type EnvIntro = M.Map Name Definition
+type EnvElim = M.Map Name [Definition]
 
 data Env = Env Context EnvIntro EnvElim
     deriving (Show, Eq)
@@ -39,51 +39,67 @@ data Env = Env Context EnvIntro EnvElim
 empty :: Env
 empty = Env M.empty M.empty M.empty
 
-getType :: Env -> Ident -> T.Type
-getType (Env c _ _) i = c M.! i
+getType :: Env -> Ident -> TypeError T.Type
+getType (Env c _ _) (i,_,_) =
+    case M.lookup i c of
+      Just t -> return t
+      Nothing ->
+          throw . UnknownError $
+                    "Variable " ++ show i ++ " doesn't have a type."
 
-getIntro :: Env -> Ident -> Definition
-getIntro (Env _ e _) i = e M.! i
+getIntro :: Env -> Ident -> TypeError Definition
+getIntro (Env _ e _) (i,_,_) =
+    case M.lookup i e of
+      Just t -> return t
+      Nothing ->
+          throw . UnknownError $
+                    "Variable " ++ show i ++ " doesn't have an introduction."
 
-getElims :: Env -> Ident -> [Definition]
-getElims (Env _ _ e) i = e M.! i
+getElims :: Env -> Ident -> TypeError [Definition]
+getElims (Env _ _ e) (i,_,_) =
+    case M.lookup i e of
+      Just t -> return t
+      Nothing ->
+          throw . UnknownError $
+                    "Variable " ++ show i ++ " doesn't have any elimination."
 
 getVal :: Env -> Ident -> Either Definition [Definition]
-getVal e@(Env _ ei ee) i =
+getVal e@(Env _ ei ee) (i,_,_) =
     case M.lookup i ei of
       Just (Alias x) -> getVal e x
       Just x -> Left x
       Nothing -> Right $ ee M.! i
 
 addContext :: Env -> Ident -> T.Type -> TypeError Env
-addContext (Env context ei ee) i ty = do
+addContext (Env context ei ee) id@(i,_,_)  ty = do
     context' <-
         case M.lookup i context of
           Nothing -> return (M.insert i ty context)
           Just ty' | ty == ty' -> return (M.insert i ty context)
-          Just ty' -> throw (IncompBindings i ty ty')
+          Just ty' -> throw (IncompBindings id ty ty')
     return (Env context' ei ee)
 
 addBinding :: Env -> Ident -> Definition -> T.Type -> TypeError Env
-addBinding env i t ty = do
-  (Env context ei ee) <- addContext env i ty
+addBinding env id@(i,_,_) t ty = do
+  (Env context ei ee) <- addContext env id ty
   let ei' = M.insert i t ei
   return (Env context ei' ee)
 
 addAlias :: Env -> Ident -> Ident -> TypeError Env
-addAlias env x y =
-    addBinding env x (Alias y) (getType env y)
+addAlias env x y = do
+  ty <- getType env y
+  addBinding env x (Alias y) ty
 
 -- | Verification functions
 
 
 -- Utility function to normalize (and verify) a sort.
 normalizeSort :: Env -> Ident -> TypeError T.Sort
-normalizeSort env@(Env _ e _) i =
-    case e M.! i of
-      Star s -> return s
-      Alias x -> normalizeSort env x
-      _ -> throw $ Abstract i
+normalizeSort env@(Env _ e _) id@(i,_,_) =
+    case M.lookup i e of
+      Just (Star s) -> return s
+      Just (Alias x) -> normalizeSort env x
+      _ -> throw $ Abstract id
 
 normalizeSort' :: Env -> T.Type -> TypeError T.Sort
 normalizeSort' e ty =
@@ -95,27 +111,13 @@ normalizeSort' e ty =
 -- Intro Type in the environment
 
 typePi :: Env -> Ident -> T.Type -> Ident -> Ident -> T.Term -> TypeError Env
-typePi env i ty x tyA tyB = do
-  Env context envi enve <- addContext env i ty
-  envi' <- return (M.insert i (Pi x tyA tyB) envi)
-  return (Env context envi' enve)
+typePi env i ty x tyA tyB =
+  addBinding env i (Pi x tyA tyB) ty
 
 typeSigma :: Env -> Ident -> T.Type -> Ident -> Ident -> T.Term -> TypeError Env
 typeSigma env i ty x tyA tyB = do
-  Env context envi enve <- addContext env i ty
-  envi' <- return (M.insert i (Sigma x tyA tyB) envi)
-  return (Env context envi' enve)
+  addBinding env i (Sigma x tyA tyB) ty
 
 typeFin :: Env -> Ident -> T.Type -> [String] -> TypeError Env
 typeFin env i ty l = do
-  Env context envi enve <- addContext env i ty
-  envi' <- return (M.insert i (Fin l) envi)
-  return (Env context envi' enve)
-
-elimPair :: Env -> Ident -> Ident -> Ident -> TypeError Env
-elimPair env@(Env c ei ee) x' y' z =
-    case M.lookup z ei of
-      Just (IPair x y) ->
-          do { env' <- addAlias env x' x ; addAlias env' y' y }
-      Nothing ->
-          return $ Env c (M.insert z (EPair x' y') ei) ee
+  addBinding env i (Fin l) ty
