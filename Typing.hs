@@ -8,11 +8,11 @@ import Env(Env)
 import qualified Env as Env
 
 
-checkDec :: Env -> (Ident,Term,Term) -> TypeError (Env,(Ident,Ident))
-checkDec e (_,t,ty) = do
+checkDec :: Env -> (Ident,Term,Term) -> TypeError (Env,(Ident,Ident,Ident))
+checkDec e (i,t,ty) = do
   (e', ity) <- check e ty (Sort 10) -- HACK
   (e'', it) <- check e' t (Ident ity)
-  return (e'', (it, ity))
+  return (e'', (i, it, ity))
 
 -- | Type checking
 

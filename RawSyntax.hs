@@ -4,6 +4,8 @@ import Common
 import qualified Terms as T
 import qualified Names as N
 
+import Text.PrettyPrint((<+>),text)
+
 import Data.List(sortBy,groupBy)
 import Data.Ord(comparing)
 import qualified Data.Map as Map
@@ -171,12 +173,18 @@ groupSmt decs =
     in mapM f decsGroup where
         f [ TypDec i ty , Def _ t ] = return (i,t,ty)
         f [ Def i t , TypDec _ ty ] = return (i,t,ty)
-        f [ Def i _ ] =
-            throw $ "Definition of " ++ show i ++ " lacks a type declaration."
-        f [ TypDec i _ ] =
-            throw $ "Type declaration of " ++ show i ++ " lacks a definition."
+        f [ Def (Ident (_,i)) _ ] =
+            throw $
+            text "Definition of" <+> text i
+              <+> text "lacks a type declaration."
+        f [ TypDec (Ident (_,i)) _ ] =
+            throw $
+            text "Type declaration of" <+> text i
+              <+> text "lacks a definition."
         f (h:_) =
-            throw $ show (smtGetIdent h) ++ " has multiple definitions or declarations."
+            throw $
+            text "Variable" <+> text (smtGetIdString h) <+>
+            text "has multiple definitions or declarations."
         f [] = error "empty group int statements."
 
 

@@ -22,7 +22,7 @@ data TLoc' name ref
 
     | Star name Sort (TLoc name ref)                     -- let i = *ᵢ in t
 
-    deriving (Show, Eq)
+    deriving (Eq)
 
 type TLoc name ref = (TLoc' name ref, Position)
 
@@ -58,4 +58,4 @@ type Sort = Int
 -- | Types
 
 data Type = Sort Sort | Ident Ident | Below Type
-            deriving (Show,Eq)
+            deriving (Eq)

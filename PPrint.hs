@@ -2,50 +2,113 @@ module PPrint where
 
 import Names
 import Terms
+import qualified Data.Map as Map
 
 import Text.PrettyPrint
 import Numeric (showIntAtBase)
+
+dot :: Doc
+dot = char '.'
+
+lambda :: Doc
+lambda = char 'λ'
+
+star :: Doc
+star = char '★'
+
+cross :: Doc
+cross = char '×'
+
+dcolons :: Doc
+dcolons = text "::"
+
+arrow :: Doc
+arrow = char '→'
+
+scriptPretty :: String -> Int -> Doc
+scriptPretty s = text . scriptShow s
+
+scriptShow :: (Integral a, Show a) => [Char] -> a -> [Char]
+scriptShow [] _ = []
+scriptShow (minus:digits) x =
+    if x < 0 then minus : sho (negate x) else sho x
+    where sho y = showIntAtBase 10 (\i -> digits !! i) y []
+
+subscriptPretty :: Int -> Doc
+subscriptPretty = scriptPretty "-₀₁₂₃₄₅₆₇₈₉"
+
+intro :: Doc
+intro = char 'ᵢ'
+
+elim :: Doc
+elim = char 'ₑ'
+
+-- Some pretty typeclass
+
+class Pretty a where
+    pretty :: a -> Doc
+
+instance Pretty Doc where
+    pretty = id
+
+instance Pretty Int where
+    pretty = int
+
 
 -- default indentation
 indentation :: Int
 indentation = 2
 
+-- Usefull hang operator
 ($+>) :: Doc -> Doc -> Doc
 d $+> d' = hang d indentation d'
 
 infixl 9 $+>
 
+-- | Pretty positions
+
+instance Pretty Position where
+    pretty (Point l c) = int l <> colon <> int c
+    pretty (Range l1 c1 l2 c2) | l1 == l2 =
+        int l1 <> colon <> int c1 <> dot <> int c2
+    pretty (Range l1 c1 l2 c2) =
+        int l1 <> dot <> int l2 <> colon <>
+        int c1 <> dot <> int c2
+
+-- | Pretty identifier
 ident :: Ident -> Doc
 ident (i,n,_) = text n <> int i
+
+instance Pretty Ident where
+    pretty i = ident i
 
 -- x:A
 vartype :: Ident -> Ident -> Doc
 vartype x tyA = ident x <> colon <> ident tyA
 
--- x:*ᵢ
-varsort :: Ident -> Int -> Doc
-varsort x s = ident x <> colon <> sort s
+sort :: Int -> Doc
+sort s = star <> subscriptPretty s
 
 -- (x:A)×B
 sigmaP :: Ident -> Ident -> Term -> Doc
-sigmaP x tyA tyB = parens (vartype x tyA) <> text "×" <> term tyB
+sigmaP x tyA tyB = parens (vartype x tyA) <> cross <> term tyB
 
 -- (x:A)→B
 piP :: Ident -> Ident -> Term -> Doc
-piP x tyA tyB = parens (vartype x tyA) <> text "→" <> term tyB
+piP x tyA tyB = parens (vartype x tyA) <> arrow <> term tyB
 
 -- { 'tag₁ , ... 'tagₙ }
 finP :: [String] -> Doc
-finP l = sep $ punctuate (char ',') $ map text l
+finP l = braces $ sep $ punctuate comma $ map text l
 
 -- (x,y)
 pairP :: Ident -> Ident -> Doc
-pairP x y = parens (ident x <> text ", " <> ident y)
+pairP x y = parens $ ident x <> comma <+> ident y
 
 -- λ(x:A).t
 lamP :: Ident -> Term -> Doc
 lamP x t =
-    (char 'λ' <> ident x <> char '.') $+> term t
+    (lambda <> ident x <> dot) $+> term t
 
 -- case x do { 'tagᵢ → tᵢ | i = 1..n }
 caseP :: Ident -> [(String, Term)] -> Doc
@@ -53,13 +116,13 @@ caseP x l =
     text "case" <+> ident x <+> text "do" $+$
     (sep $ map f l)
     where
-      f (s,t) = hang (text s <+> char '→') indentation (term t)
+      f (s,t) = (text s <+> arrow) $+> term t
 
 
 -- let i = d in t
 letP :: Doc -> Doc -> Doc -> Doc
 letP i d t =
-    sep [text "let" <+> i <+> text "=" , d , text "in" ] $+$
+    sep [text "let" <+> i <+> equals , d , text "in" ] $+$
     t
 
 letP1 :: Ident -> Doc -> Doc -> Doc
@@ -67,20 +130,6 @@ letP1 i = letP (ident i)
 
 letP2 :: Ident -> Ident -> Doc -> Doc -> Doc
 letP2 i1 i2 = letP $ pairP i1 i2
-
-star :: Doc
-star = text "★"
-
-scriptPretty :: String -> Int -> Doc
-scriptPretty s = text . scriptShow s
-
-scriptShow (minus:digits) x = if x < 0 then minus : sho (negate x) else sho x
-  where sho x = showIntAtBase 10 (\i -> digits !! i) x []
-
-subscriptPretty = scriptPretty "-₀₁₂₃₄₅₆₇₈₉"
-
-sort :: Int -> Doc
-sort s = star <> subscriptPretty s
 
 term :: Term -> Doc
 term (t,_) =
@@ -102,15 +151,31 @@ term (t,_) =
           letP2 i1 i2 (ident z) (term t')
 
       Fin i s l t' ->
-          letP (vartype i s) (braces $ finP l) (term t')
+          letP (vartype i s) (finP l) (term t')
       Tag i ty s t' -> letP (vartype i ty) (text s) (term t')
       Case x l -> caseP x l
       Star i s t' -> letP1 i (sort s) (term t')
 
-smt :: (Ident,Term,Term) -> Doc
-smt (i,t,ty) =
-    (ident i <+> text "::") $+> term ty $+$
-    (ident i <+> text "=") $+> term t
+instance Pretty Term where
+    pretty t = term t
 
-smts :: [(Ident,Term,Term)] -> Doc
-smts l = sep $ map smt l
+-- | Pretty Statements
+
+instance Pretty (Ident,Term,Term) where
+    pretty (i,t,ty) =
+        (ident i <+> dcolons) $+> term ty $+$
+        (ident i <+> equals) $+> term t
+
+instance Pretty [(Ident,Term,Term)] where
+    pretty l = vcat $ map pretty l
+
+instance Pretty Type where
+    pretty (Sort s) = sort s
+    pretty (Below t) = text "↓" <> pretty t
+    pretty (Ident i) = pretty i
+
+instance (Pretty k, Pretty v) => Pretty (Map.Map k v) where
+    pretty m =
+        let l = Map.assocs m
+            ld = map (\(k,v) -> pretty k <> colon <> pretty v) l
+        in fsep $ punctuate comma ld

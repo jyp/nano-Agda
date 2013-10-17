@@ -5,9 +5,14 @@ import Terms
 import Names
 import Control.Monad.Error as E
 
+import Text.PrettyPrint
+
  -- General error
 
-type Err = ErrorT String IO
+type Err = ErrorT Doc IO
+
+instance Error Doc where
+    strMsg s = text s
 
  -- Typing error
 
@@ -16,10 +21,10 @@ data TypeInfo
     | Check Ident Ident String
     | IncompBindings Ident Type Type
     | Abstract Ident
-    | UnknownError String
+    | UnknownError Doc
 
 instance Error TypeInfo where
-    strMsg s = UnknownError s
+    strMsg s = UnknownError $ text s
 
 type TypeError = Either TypeInfo
 
@@ -35,20 +40,22 @@ convert (Left e) =
     case e of
       Unification x y ->
           throw $
-          "Type error during the unification of "
-          ++ show x ++ " and " ++ show y
+          text "Type error during the unification of"
+          <+> pretty x <+> text "and" <+> pretty y
       Check i ty s  ->
           throw $
-          "Type error during the checking of "
-          ++ show i ++ " with type " ++ show ty ++ " : " ++ s
+          text "Type error during the checking of "
+          <+> pretty i <+> text "with type" <+> pretty ty
+          <+> colon <+> text s
       Abstract ty ->
           throw $
-          "This term is abstract and can't be decomposed : "
-          ++ show ty
+          text "This term is abstract and can't be decomposed :"
+          <+> pretty ty
       IncompBindings i ty ty' ->
           throw $
-          "Types" ++ show ty ++ " and " ++ show ty' ++
-           " for variable " ++ show i ++ " are incompatibles."
+          text "Types" <+> pretty ty <+> text "and"
+          <+> pretty ty' <+> text "for variable"
+          <+> pretty i <+> text "are incompatibles."
       UnknownError s -> throw s
 
 

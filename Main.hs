@@ -1,9 +1,9 @@
 module Main where
 
 import qualified RawSyntax as R
-import qualified Lexer as L
-import qualified Parser as P
-import qualified PPrint as PPrint
+import qualified Lexer
+import qualified Parser
+import PPrint(pretty)
 import Common
 import Names
 import Terms
@@ -14,10 +14,10 @@ import Control.Monad.Error
 
 parseFiles :: [String] -> Err [R.Smt]
 parseFiles l = do
-  l' <- mapM (P.main . L.alexScanTokens) l
+  l' <- mapM (Parser.main . Lexer.alexScanTokens) l
   return (concat l')
 
-checkFiles :: [(Ident,Term,Term)] -> Err (Env, [(Ident, Ident)])
+checkFiles :: [(Ident,Term,Term)] -> Err (Env, [(Ident, Ident, Ident)])
 checkFiles decs = do
   decsT <- scanfoldl
           (\e s -> convert $ checkDec e s) empty decs
@@ -40,9 +40,9 @@ main = do
   () <- printExn decsAST
 
   let decsTerms = decsAST >>= R.convertFile
-  () <- printExn (fmap PPrint.smts decsTerms)
+  () <- printExn (fmap pretty decsTerms)
 
   results <- runErrorT $ decsTerms >>= checkFiles
   case results of
-    Left x -> print x
-    Right x -> print x
+    Left x -> print (pretty x)
+    Right x -> print (pretty x)

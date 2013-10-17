@@ -5,6 +5,7 @@ import Control.Monad.Error
 import RawSyntax
 import Lexer
 import Common
+import Text.PrettyPrint((<>),(<+>),char,text)
 
 }
 
@@ -139,10 +140,12 @@ thenM = (>>=)
 
 parseError :: [Token] -> Err a
 parseError ts =
-  throwError $ "syntax error at " ++ show (tokenPosn (head ts)) ++
+  throwError $
+  text "Syntax error at" <+>
+  text (show (tokenPosn (head ts))) <>
   case ts of
-    [] -> []
-    [Err _] -> " due to lexer error"
-    _ -> []
+    [] -> char '.'
+    [Err _] -> text " due to lexer error."
+    _ -> char '.'
 
 }

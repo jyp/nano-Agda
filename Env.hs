@@ -3,6 +3,9 @@ module Env where
 import Common
 
 import Names
+import PPrint
+import Text.PrettyPrint(($$),($+$),(<>),(<+>),text)
+import qualified Text.PrettyPrint as P
 import qualified Terms as T
 
 import qualified Data.Map as M
@@ -19,49 +22,71 @@ data Definition
     | Sigma Ident Ident T.Term  -- σ = (x:A)×B
     | Fin [String]              -- σ = { 'bla, 'bli, 'blo }
     | Star Int                  -- σ = *ᵢ
-    deriving (Show, Eq)
+    deriving (Eq)
 
-above, below :: Definition -> Definition
-above x = case x of
-            Star i -> Star (i+1)
-            _ -> error "Expected a sort"
-below x = case x of
-            Star i -> Star (i-1)
-            _ -> error "Expected a sort"
+instance Pretty Definition where
+    pretty (Appl f x) = pretty f <+> pretty x
+    pretty (Fun i t) = lamP i t
+    pretty (ITag x) = text x <> intro
+    pretty (ETag x) = text x <> elim
+    pretty (IPair x y) = pairP x y <> intro
+    pretty (EPair x y) = pairP x y <> elim
+    pretty (Alias x) = pretty x
+    pretty (Pi x tyA tyB) = piP x tyA tyB
+    pretty (Sigma x tyA tyB) = sigmaP x tyA tyB
+    pretty (Fin l) = finP l
+    pretty (Star i) = sort i
 
 type Context = M.Map Name T.Type
 type EnvIntro = M.Map Name Definition
 type EnvElim = M.Map Name [Definition]
 
 data Env = Env Context EnvIntro EnvElim
-    deriving (Show, Eq)
+    deriving (Eq)
+
+instance Pretty Env where
+    pretty (Env c ei _) =
+        P.text "Context :" <+> pretty c $+$
+        P.text "EnvIntro :" <+> pretty ei
+
+instance Pretty (Env, [(Ident, Ident, Ident)]) where
+    pretty (e,l) =
+        pretty e $+$ (P.vcat $ map printdef l)
+            where
+              printdef (i,t,ty) =
+                  pretty i
+                  <+> P.colon <+> pretty ty
+                  <+> P.equals <+> pretty t
 
 empty :: Env
 empty = Env M.empty M.empty M.empty
 
 getType :: Env -> Ident -> TypeError T.Type
-getType (Env c _ _) (i,_,_) =
+getType (Env c _ _) ident@(i,_,_) =
     case M.lookup i c of
       Just t -> return t
       Nothing ->
           throw . UnknownError $
-                    "Variable " ++ show i ++ " doesn't have a type."
+          text "Variable" <+> pretty ident <+>
+          text "doesn't have a type."
 
 getIntro :: Env -> Ident -> TypeError Definition
-getIntro (Env _ e _) (i,_,_) =
+getIntro (Env _ e _) ident@(i,_,_) =
     case M.lookup i e of
       Just t -> return t
       Nothing ->
           throw . UnknownError $
-                    "Variable " ++ show i ++ " doesn't have an introduction."
+          text "Variable" <+> pretty ident <+>
+          text "doesn't have an introduction."
 
 getElims :: Env -> Ident -> TypeError [Definition]
-getElims (Env _ _ e) (i,_,_) =
+getElims (Env _ _ e) ident@(i,_,_) =
     case M.lookup i e of
       Just t -> return t
       Nothing ->
           throw . UnknownError $
-                    "Variable " ++ show i ++ " doesn't have any elimination."
+          text "Variable" <+> pretty ident <+>
+          text "doesn't have any elimination."
 
 getVal :: Env -> Ident -> Either Definition [Definition]
 getVal e@(Env _ ei ee) (i,_,_) =
