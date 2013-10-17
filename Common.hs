@@ -18,6 +18,7 @@ instance Error Doc where
 
 data TypeInfo
     = Unification Type Type
+    | SubSort Type Type
     | Check Ident Ident String
     | IncompBindings Ident Type Type
     | Abstract Ident
@@ -41,7 +42,11 @@ convert (Left e) =
       Unification x y ->
           throw $
           text "Type error during the unification of"
-          <+> pretty x <+> text "and" <+> pretty y
+          <+> pretty x <+> text "and" <+> pretty y <> char '.'
+      SubSort x y ->
+          throw $
+          text "Type" <+> pretty x <+>
+          text "should be a subsort of" <+> pretty y <> char '.'
       Check i ty s  ->
           throw $
           text "Type error during the checking of "

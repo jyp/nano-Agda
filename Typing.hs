@@ -17,7 +17,12 @@ checkDec e (i,t,ty) = do
 
 -- | Type checking
 
-
+assertSubSort :: Env -> Type -> Type -> TypeError ()
+assertSubSort e t t' = do
+  s <- Env.normalizeSort' e t
+  s' <- Env.normalizeSort' e t'
+  if s <= s' then return ()
+  else throw $ SubSort t t'
 
 check :: Env -> Term -> Type -> TypeError (Env,Ident)
 
@@ -39,7 +44,7 @@ check e (Star i s t , _) ty = do
 check e (Pi i ity x tyA tyB t , _) ty = do
   let ity' = (Below (Ident ity))
   tyA_ty <- Env.getType e tyA
-  () <- unify e tyA_ty ity' -- subsorting issue
+  () <- assertSubSort e tyA_ty ity'
   eWithx <- Env.addContext e x (Ident tyA)
   _ <- check eWithx tyB ity'
   eWithi <- Env.typePi e i (Ident ity) x tyA tyB
@@ -49,7 +54,7 @@ check e (Pi i ity x tyA tyB t , _) ty = do
 check e (Sigma i ity x tyA tyB t , _) ty = do
   let ity' = (Below (Ident ity))
   tyA_ty <- Env.getType e tyA
-  () <- unify e tyA_ty ity' -- subsorting issue
+  () <- assertSubSort e tyA_ty ity'
   eWithx <- Env.addContext e x (Ident tyA)
   _ <- check eWithx tyB ity'
   eWithi <- Env.typeSigma e i (Ident ity) x tyA tyB
@@ -57,12 +62,9 @@ check e (Sigma i ity x tyA tyB t , _) ty = do
 
 -- Fin
 check e (Fin i ity l t , _) ty = do
-  s <- Env.normalizeSort e ity
-  if s < 1 then
-      throw $ Check i ity "Sort smaller than one."
-  else do
-    eWithi <- Env.typeFin e i (Ident ity) l
-    check eWithi t ty
+  () <- assertSubSort e (Sort 1) (Ident ity)
+  eWithi <- Env.typeFin e i (Ident ity) l
+  check eWithi t ty
 
 -- | Eliminator
 
@@ -87,15 +89,15 @@ unify :: Env -> Type -> Type -> TypeError ()
 unify e t t' =
     case t' of
       Ident i' -> unify' e t i'
-      Sort _ -> unifySort e t t'
-      Below _ -> unifySort e t t'
+      Sort _ -> assertSubSort e t t'
+      Below _ -> assertSubSort e t t'
 
 unify' :: Env -> Type -> Ident -> TypeError ()
 unify' e t i =
     case t of
       Ident i' -> unifyId e i' i
-      Sort _ -> unifySort e t (Ident i)
-      Below _ -> unifySort e t (Ident i)
+      Sort _ -> assertSubSort e t (Ident i)
+      Below _ -> assertSubSort e t (Ident i)
 
 unifyId :: Env -> Ident -> Ident -> TypeError ()
 unifyId _ i i' | i == i' = return ()
@@ -103,12 +105,6 @@ unifyId e i i' = do
   d <- Env.getIntro e i
   d' <- Env.getIntro e i'
   case (d,d') of
-    (Env.Star s, Env.Star s') | s <= s' -> return ()
+    (Env.Star _, _) -> assertSubSort e (Ident i) (Ident i')
+    ( _, Env.Star _) -> assertSubSort e (Ident i) (Ident i')
     _ -> error "unify Idents"
-
-unifySort :: Env -> Type -> Type -> TypeError ()
-unifySort e t t' = do
-  s <- Env.normalizeSort' e t
-  s' <- Env.normalizeSort' e t'
-  if s <= s' then return ()
-  else throw $ Unification t t'
