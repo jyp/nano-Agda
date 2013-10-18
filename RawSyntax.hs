@@ -4,7 +4,7 @@ import Common
 import qualified Terms as T
 import qualified Names as N
 
-import Text.PrettyPrint((<+>),text)
+import Text.PrettyPrint((<>),(<+>),text)
 
 import Data.List(sortBy,groupBy)
 import Data.Ord(comparing)
@@ -52,7 +52,10 @@ data CaseCont = CaseCont Tag Term
 -- | Main translation function
 
 getIdent :: N.NameEnv -> Ident -> N.Ident
-getIdent e (Ident (p,i)) = N.getIdent e (i,pointPos p)
+getIdent e (Ident (p,i)) =
+    case N.getIdent e (i,pointPos p) of
+      Just x -> x
+      Nothing -> error $ "Undefined variable " ++ i ++ "."
 
 freshIdent :: N.NameEnv -> Ident -> N.FreshM (N.NameEnv, N.Ident)
 freshIdent e (Ident (p,i)) = do

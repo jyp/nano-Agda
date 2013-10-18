@@ -39,9 +39,9 @@ type Ident = (Name,String,Position)
 
 type NameEnv = Map String Ident
 
-getIdent :: NameEnv -> (String,Position) -> Ident
-getIdent e (s,p) = do
-  let (c,s',_) = e M.! s in (c,s',p)
+getIdent :: NameEnv -> (String,Position) -> Maybe Ident
+getIdent e (s,p) =
+    fmap (\(c,s',_) -> (c,s',p)) $ M.lookup s e
 
 freshIdent :: NameEnv -> (String, Position) -> FreshM (NameEnv,Ident)
 freshIdent e (s,p) = do
