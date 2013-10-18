@@ -1,0 +1,24 @@
+star² :: let i3 = *3 in i3
+star² = let i2 = *2 in i2
+
+star :: star²
+star = let i = * in i
+
+ℤ/5ℤ :: star
+ℤ/5ℤ =
+  let fin : star = { '0, '1, '2, '3, '4 } in fin
+
+funℤ/5ℤ :: star²
+funℤ/5ℤ = let t : star = ( a : ℤ/5ℤ ) -> ℤ/5ℤ in t
+
+incr :: funℤ/5ℤ
+incr =
+  let f : funℤ/5ℤ = λ n .
+    case n {
+      '0 -> let r : ℤ/5ℤ = '1 in r
+      '1 -> let r : ℤ/5ℤ = '2 in r
+      '2 -> let r : ℤ/5ℤ = '3 in r
+      '3 -> let r : ℤ/5ℤ = '4 in r
+      '4 -> let r : ℤ/5ℤ = '0 in r
+    }
+  in f

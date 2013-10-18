@@ -2,7 +2,7 @@
 voidfin :: let i = * in i
 voidfin =
   let i = * in
-  let fin : i = { } in fin
+  let fin : i = { 'bla } in fin
 
 voidpair :: let i = *2 in i
 voidpair =
