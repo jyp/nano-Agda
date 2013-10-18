@@ -171,8 +171,7 @@ smtGetIdString = (\(Ident (_,i)) -> i) . smtGetIdent
 
 groupSmt :: [Smt] -> Err [(Ident,Term,Term)]
 groupSmt decs =
-    let decsSort = Data.List.sortBy (comparing smtGetIdString) decs
-        decsGroup = groupBy (\x y -> smtGetIdString x == smtGetIdString y) decsSort
+    let decsGroup = groupAllBy (\x y -> smtGetIdString x == smtGetIdString y) decs
     in mapM f decsGroup where
         f [ TypDec i ty , Def _ t ] = return (i,t,ty)
         f [ Def i t , TypDec _ ty ] = return (i,t,ty)
@@ -197,4 +196,4 @@ convertFile l = do
   let e = Map.empty
   decs <- groupSmt l
   let (_, decs') = N.runFresh $ scanfoldl smtToTerm e decs
-  return $ reverse $ decs'
+  return $ decs'

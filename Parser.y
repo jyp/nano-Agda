@@ -41,7 +41,7 @@ L_err    { _ }
 
 ListSmt :: { [Smt] }
 ListSmt : {- empty -} { [] }
-        | ListSmt Smt { $2 : $1 }
+        | Smt ListSmt { $1 : $2 }
 
 Smt :: { Smt }
 Smt : Ident '::' Term  { TypDec $1 $3 }

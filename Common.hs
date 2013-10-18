@@ -1,5 +1,6 @@
 module Common where
 
+import Data.List(partition)
 import PPrint
 import Terms
 import Names
@@ -66,8 +67,20 @@ convert (Left e) =
 
 -- A fold/map hybrid to pass along the environment.
 scanfoldl :: Monad m => (env -> a -> m (env, b)) -> env -> [a] -> m (env, [b])
-scanfoldl = aux [] where
-    aux acc _ e [] = return (e,acc)
-    aux acc f e (h:t) = do
-      (e',h') <- f e h
-      aux (h':acc) f e' t
+scanfoldl f e l = do
+  (e',l') <- aux [] f e l
+  return (e', reverse l')
+      where
+        aux acc' _ e' [] = return (e',acc')
+        aux acc' f' e' (h:t) = do
+                  (e'',h'') <- f' e' h
+                  aux (h'':acc') f' e'' t
+
+-- Stable grouping function
+groupAllBy :: (a -> a -> Bool) -> [a] -> [[a]]
+groupAllBy eq l =
+     reverse $ f l [] where
+        f [] acc = acc
+        f (h:t) acc =
+          let (same, other) = partition (eq h) t in
+          f other ((h:same) : acc)
