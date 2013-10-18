@@ -18,7 +18,7 @@ data TLoc' name ref
 
     | Fin name ref [String] (TLoc name ref)                  -- let i = { 'tagᵢ | i = 1..n } in <t>
     | Tag name ref String (TLoc name ref)                -- let i : T = 'tagᵢ in <t>
-    | Case ref [(String, TLoc name ref)]                 -- case x do { 'tagᵢ → <tᵢ> | i = 1..n }
+    | Case ref [(String, TLoc name ref)]                 -- case x { 'tagᵢ → <tᵢ> | i = 1..n }
 
     | Star name Sort (TLoc name ref)                     -- let i = *ᵢ in t
 

@@ -51,7 +51,7 @@ Light abuse of notation, when A:*ᵢ is in the environment, it's valid for every
 
     { Γ, z:{ 'tagᵢ / i = 1..n } | Δ , z='tagᵢ ⊢  kᵢ : C / i = 1..n }
 ————————————————————————————————————————————————————————————————————————————
-Γ, z:{ 'tagᵢ / i = 1..n } | Δ  ⊢  case z of { 'tagᵢ → kᵢ / i = 1..n } : C
+Γ, z:{ 'tagᵢ / i = 1..n } | Δ  ⊢  case z { 'tagᵢ → kᵢ / i = 1..n } : C
 
 
 Γ, f:(x:A)→B , a:A , y:(let x = a in B) | Δ , y=(f a) ⊢                k : C

@@ -104,7 +104,7 @@ Term : Ident { Var $1 }
   | let Ident ':' Ident '=' Tag in Term
   { Tag $1 $2     $4        $6  $7 $8 }
 
- -- case x do { 'tagᵢ → <tᵢ> | i = 1..n }
+ -- case x { 'tagᵢ → <tᵢ> | i = 1..n }
   | case Ident '{' ListCaseCont '}'
   { Case $1 $2     $4 }
 
