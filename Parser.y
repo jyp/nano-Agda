@@ -121,7 +121,7 @@ Tags : Tag { [$1] }
 
 ListCaseCont :: { [CaseCont] }
 ListCaseCont : {- empty -} { [] }
-  | ListCaseCont CaseCont { $2 : $1 }
+  | CaseCont ListCaseCont { $1 : $2 }
 
 CaseCont :: { CaseCont }
 CaseCont : Tag '→' Term { CaseCont $1 $3 }
