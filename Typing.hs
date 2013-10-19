@@ -69,18 +69,24 @@ check e (Fin i ity l t , _) ty = do
 -- | Eliminator
 
 -- let i = f x in <t>
+check e (App i f x t, _) ty = error "check app"
 
 -- let (x,y) = z in <t>
+check e (Proj x y z t, _) ty = error "check proj"
 
--- case x do { 'tagᵢ → <tᵢ> | i = 1..n }
+-- case x { 'tagᵢ → <tᵢ> | i = 1..n }
+check e (Case x l, _) ty = error "check case"
 
 -- | Introductions
 
 -- let i : S = λx.<t'> in <t>
+check e (Lam i ity x t' t, _) ty = error "check lambda"
 
 -- let i : S = (x,y) in <t>
+check e (Pair i ity x y t, _) ty = error "check pair"
 
 -- let i : T = 'tagᵢ in <t>
+check e (Tag i ity tag t, _) ty = error "check tag"
 
 -- | Unification
 
