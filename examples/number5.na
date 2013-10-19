@@ -9,7 +9,7 @@ star = let i = * in i
   let fin : star = { '0, '1, '2, '3, '4 } in fin
 
 funℤ/5ℤ :: star²
-funℤ/5ℤ = let t : star = ( a : ℤ/5ℤ ) -> ℤ/5ℤ in t
+funℤ/5ℤ = let t : star² = ( a : ℤ/5ℤ ) -> ℤ/5ℤ in t
 
 incr :: funℤ/5ℤ
 incr =
