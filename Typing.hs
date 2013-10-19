@@ -113,4 +113,8 @@ unifyId e i i' = do
   case (d,d') of
     (Env.Star _, _) -> assertSubSort e (Ident i) (Ident i')
     ( _, Env.Star _) -> assertSubSort e (Ident i) (Ident i')
+
+    (Env.Alias z, _) -> unifyId e z i'
+    (_, Env.Alias z) -> unifyId e i z
+
     _ -> error "unify Idents"
