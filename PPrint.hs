@@ -77,25 +77,25 @@ instance Pretty Position where
 
 -- | Pretty identifier
 ident :: Ident -> Doc
-ident (i,n,_) = text n <> int i
+ident (i,n,_) = text n <> subscriptPretty i
 
 instance Pretty Ident where
     pretty i = ident i
 
 -- x:A
 vartype :: Ident -> Ident -> Doc
-vartype x tyA = ident x <> colon <> ident tyA
+vartype x tyA = ident x <+> colon <+> ident tyA
 
 sort :: Int -> Doc
 sort s = star <> subscriptPretty s
 
 -- (x:A)×B
 sigmaP :: Ident -> Ident -> Term -> Doc
-sigmaP x tyA tyB = parens (vartype x tyA) <> cross <> term tyB
+sigmaP x tyA tyB = parens (vartype x tyA) <+> cross <+> term tyB
 
 -- (x:A)→B
 piP :: Ident -> Ident -> Term -> Doc
-piP x tyA tyB = parens (vartype x tyA) <> arrow <> term tyB
+piP x tyA tyB = parens (vartype x tyA) <+> arrow <+> term tyB
 
 -- { 'tag₁ , ... 'tagₙ }
 finP :: [String] -> Doc
@@ -113,8 +113,8 @@ lamP x t =
 -- case x do { 'tagᵢ → tᵢ | i = 1..n }
 caseP :: Ident -> [(String, Term)] -> Doc
 caseP x l =
-    text "case" <+> ident x <+> text "do" $+$
-    (sep $ map f l)
+    text "case" <+> ident x <+> text "{" $+$
+    (sep $ map f l) $$ text "}"
     where
       f (s,t) = (text s <+> arrow) $+> term t
 
