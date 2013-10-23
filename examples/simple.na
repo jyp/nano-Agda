@@ -1,13 +1,33 @@
+star³ :: let i4 = *4 in i4
+star³ = let i3 = *3 in i3
 
-voidfin :: let i = * in i
+star² :: star³
+star² = let i2 = *2 in i2
+
+star :: star²
+star = let i = * in i
+
+voidfin :: star
 voidfin =
-  let i = * in
-  let fin : i = { 'bla } in fin
+  let fin : star = { 'bla } in fin
 
-voidpair :: let i = *2 in i
+pairdep :: star²
+pairdep =
+  let p : star² = ( x : star ) * x in p
+
+sig_pairing :: star³
+sig_pairing =
+  let i : star³ = ( _ : star) -> star²
+  in i
+
+pairing :: sig_pairing
+pairing =
+  let f : sig_pairing = λ x .
+    let r : star² = ( _ : x ) × x in r
+  in f
+
+voidpair :: star²
 voidpair =
-  let i = * in
-  let i2 = *2 in
-  let fin : i = {} in
-  let pair : i2 = (x:fin) × voidfin in
+  let fin : star = { 'blu, 'bli } in
+  let pair : star² = (x:fin) × voidfin in
   pair
