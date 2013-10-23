@@ -36,29 +36,42 @@ throw = E.throwError
 catch :: MonadError e m => m a -> (e -> m a) -> m a
 catch = E.catchError
 
+introError :: Ident -> Doc
+introError (_,_,p) =
+    text "at position" <+> pretty p <+> colon
+
+introError' :: Type -> Doc
+introError' (Ident i) = introError i
+introError' (Sort _) = empty
+
 convert :: TypeError a -> Err a
 convert (Right x) = return x
 convert (Left e) =
     case e of
       Unification x y ->
           throw $
+          introError' x <&> introError' y $+$
           text "Type error during the unification of"
           <+> pretty x <+> text "and" <+> pretty y <> char '.'
       SubSort x y ->
           throw $
+          introError' x <&> introError' y  $+$
           text "Type" <+> pretty x <+>
           text "should be a subsort of" <+> pretty y <> char '.'
       Check i ty s  ->
           throw $
+          introError i <&> introError ty  $+$
           text "Type error during the checking of "
           <+> pretty i <+> text "with type" <+> pretty ty
           <+> colon <+> text s
-      Abstract ty ->
+      Abstract i ->
           throw $
+          introError i $+$
           text "This term is abstract and can't be decomposed :"
-          <+> pretty ty
+          <+> pretty i
       IncompBindings i ty ty' ->
           throw $
+          introError i $+$
           text "Types" <+> pretty ty <+> text "and"
           <+> pretty ty' <+> text "for variable"
           <+> pretty i <+> text "are incompatibles."

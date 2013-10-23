@@ -35,6 +35,22 @@ dummyPos = Point (-1) (-1)
 
 type Ident = (Name,String,Position)
 
+(=~) :: Ident -> Ident -> Bool
+(x,_,_) =~ (y,_,_) = x == y
+
+infix 7 =~
+
+(>~) :: Ident -> (Name -> Name) -> Ident
+(x,s,p) >~ f = (f x, s, p)
+
+infix 1 >~
+
+getPos :: Ident -> Position
+getPos (_,_,p) = p
+
+getN :: Ident -> Name
+getN (n,_,_) = n
+
 -- | Name Environment
 
 type NameEnv = Map String Ident

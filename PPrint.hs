@@ -25,6 +25,12 @@ dcolons = text "::"
 arrow :: Doc
 arrow = char '→'
 
+(<&>) :: Doc -> Doc -> Doc
+d1 <&> d2 | isEmpty d2 = d1
+d1 <&> d2 = d1 <+> text "and" <+> d2
+
+infixl 8 <&>
+
 scriptPretty :: String -> Int -> Doc
 scriptPretty s = text . scriptShow s
 
@@ -90,12 +96,12 @@ sort :: Int -> Doc
 sort s = star <> subscriptPretty s
 
 -- (x:A)×B
-sigmaP :: Ident -> Ident -> Term -> Doc
-sigmaP x tyA tyB = parens (vartype x tyA) <+> cross <+> term tyB
+sigmaP :: Ident -> Ident -> Doc -> Doc
+sigmaP x tyA tyB = parens (vartype x tyA) <+> cross <+> tyB
 
 -- (x:A)→B
-piP :: Ident -> Ident -> Term -> Doc
-piP x tyA tyB = parens (vartype x tyA) <+> arrow <+> term tyB
+piP :: Ident -> Ident -> Doc -> Doc
+piP x tyA tyB = parens (vartype x tyA) <+> arrow <+> tyB
 
 -- { 'tag₁ , ... 'tagₙ }
 finP :: [String] -> Doc
@@ -106,9 +112,9 @@ pairP :: Ident -> Ident -> Doc
 pairP x y = parens $ ident x <> comma <+> ident y
 
 -- λ(x:A).t
-lamP :: Ident -> Term -> Doc
+lamP :: Ident -> Doc -> Doc
 lamP x t =
-    (lambda <> ident x <> dot) $+> term t
+    (lambda <> ident x <> dot) $+> t
 
 -- case x do { 'tagᵢ → tᵢ | i = 1..n }
 caseP :: Ident -> [(String, Term)] -> Doc
@@ -137,14 +143,14 @@ term (t,_) =
       Var i -> ident i
 
       Pi i s x tyA tyB t' ->
-          letP (vartype i s) (piP x tyA tyB) (term t')
+          letP (vartype i s) (piP x tyA $ term tyB) (term t')
       Lam i ty x tfun t' ->
-          letP (vartype i ty) (lamP x tfun) (term t')
+          letP (vartype i ty) (lamP x $ term tfun) (term t')
       App i f x t' ->
           letP1 i (ident f <+> ident x) (term t')
 
       Sigma i s x tyA tyB t' ->
-          letP (vartype i s) (sigmaP x tyA tyB) (term t')
+          letP (vartype i s) (sigmaP x tyA $ term tyB) (term t')
       Pair i ty x y t' ->
           letP (vartype i ty) (pairP x y) (term t')
       Proj i1 i2 z t' ->
@@ -171,7 +177,6 @@ instance Pretty [(Ident,Term,Term)] where
 
 instance Pretty Type where
     pretty (Sort s) = sort s
-    pretty (Below t) = text "↓" <> pretty t
     pretty (Ident i) = pretty i
 
 instance (Pretty k, Pretty v) => Pretty (Map.Map k v) where
