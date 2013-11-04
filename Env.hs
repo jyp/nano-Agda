@@ -208,7 +208,14 @@ normalizePi env i = do
   def <- env ! i
   case def of
     Pi x tyA tyB -> return (x,tyA,tyB)
-    _ -> throw $ Abstract i
+    _ -> throw $ Normalize (T.Ident i) "Expected Pi."
+
+normalizeSigma :: Env -> Ident -> TypeError (Ident, Ident, (Env,Ident))
+normalizeSigma env i = do
+  def <- env ! i
+  case def of
+    Sigma x tyA tyB -> return (x,tyA,tyB)
+    _ -> throw $ Normalize (T.Ident i) "Expected Sigma."
 
 normalizeFin :: Env -> T.Type -> TypeError [String]
 normalizeFin env ty =
@@ -219,23 +226,7 @@ normalizeFin env ty =
         def <- env ! i
         case def of
           Fin l -> return l
-          _ -> throw $ Abstract i
-
-
-
--- Intro Type in the environment
-
-typePi :: Env -> Ident -> T.Type -> Ident -> Ident -> (Env,Ident) -> Env
-typePi env i ty x tyA tyB =
-  addBinding env i (Pi x tyA tyB) ty
-
-typeSigma :: Env -> Ident -> T.Type -> Ident -> Ident -> (Env,Ident) -> Env
-typeSigma env i ty x tyA tyB =
-  addBinding env i (Sigma x tyA tyB) ty
-
-typeFin :: Env -> Ident -> T.Type -> [String] -> Env
-typeFin env i ty l = do
-  addBinding env i (Fin l) ty
+          _ -> throw $ Normalize ty "Expected Fin."
 
 -- Verify that the definition of a variable has well formed tag intro and elim.
 checkTag :: Env -> Ident -> Bool

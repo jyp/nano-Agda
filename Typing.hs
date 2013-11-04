@@ -56,12 +56,13 @@ check e (Pi i ity x tyA tyB t , _) ty = do
   s <- Env.normalizeSort e ity
 
   let eWithx = Env.addContext e x (Ident tyA)
-  (tyB_e,tyB') <- check eWithx tyB (Sort $ s - 1)
+  tyB' <- check eWithx tyB (Sort $ s - 1)
 
   tyA_ty <- Env.getType e tyA
   () <- assertSubSort e tyA_ty (Sort $ s - 1)
 
-  let eWithi = Env.typePi e i (Ident ity) x tyA (tyB_e,tyB')
+  let eWithi =
+          Env.addBinding e i (Env.Pi x tyA tyB') (Ident ity)
   check eWithi t ty
 
 -- Σ
@@ -69,24 +70,26 @@ check e (Sigma i ity x tyA tyB t , _) ty = do
   s <- Env.normalizeSort e ity
 
   let eWithx = Env.addContext e x (Ident tyA)
-  (tyB_e,tyB') <- check eWithx tyB (Sort $ s - 1)
+  tyB' <- check eWithx tyB (Sort $ s - 1)
 
   tyA_ty <- Env.getType e tyA
   () <- assertSubSort e tyA_ty (Sort $ s - 1)
 
-  let eWithi = Env.typeSigma e i (Ident ity) x tyA (tyB_e,tyB')
+  let eWithi =
+          Env.addBinding e i (Env.Sigma x tyA tyB') (Ident ity)
   check eWithi t ty
 
 -- Fin
 check e (Fin i ity l t , _) ty = do
   () <- assertSubSort e (Sort 1) (Ident ity)
-  let eWithi = Env.typeFin e i (Ident ity) l
+  let eWithi = Env.addBinding e i (Env.Fin l) (Ident ity)
   check eWithi t ty
 
 -- | Eliminator
 
 -- let i = f x in <t>
 check e (App i f x t, _) ty = error "check app"
+
 
 -- let (x,y) = z in <t>
 check e (Proj x y z t, _) ty = error "check proj"
