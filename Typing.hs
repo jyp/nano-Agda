@@ -7,13 +7,15 @@ import Terms
 import Env(Env)
 import qualified Env as Env
 import qualified Data.Map as M
+import qualified Data.Maybe as Maybe
+import qualified Data.List as List
 
 
 checkDec :: Env -> (Ident,Term,Term) -> TypeError (Env,(Ident,Ident,Ident))
 checkDec e (i,t,ty) = do
   (e', ity) <- check e ty (Sort 10) -- HACK
   (e'', it) <- check e' t (Ident ity)
-  e_i <- Env.addBinding e'' i (Env.Alias it) (Ident ity)
+  let e_i = Env.addBinding e'' i (Env.Alias it) (Ident ity)
   return (e_i, (i, it, ity))
 
 -- | Type checking
@@ -43,34 +45,42 @@ check e (Var i, _) ty = do
   return (e, i)
 
 -- *ᵢ
-check e (Star i s t , _) ty = do
-  eWithi <- Env.addBinding e i (Env.Star s) (Sort (s+1))
-  check eWithi t ty
+check e (Star i s t , _) ty =
+  let eWithi = Env.addBinding e i (Env.Star s) (Sort (s+1))
+  in check eWithi t ty
 
 -- | Types
 
 -- Π
 check e (Pi i ity x tyA tyB t , _) ty = do
+  s <- Env.normalizeSort e ity
+
+  let eWithx = Env.addContext e x (Ident tyA)
+  (tyB_e,tyB') <- check eWithx tyB (Sort $ s - 1)
+
   tyA_ty <- Env.getType e tyA
-  () <- assertSubSort e tyA_ty (Ident ity)
-  eWithx <- Env.addContext e x (Ident tyA)
-  tyB_n <- check eWithx tyB (Ident ity)
-  eWithi <- Env.typePi e i (Ident ity) x tyA tyB_n
+  () <- assertSubSort e tyA_ty (Sort $ s - 1)
+
+  let eWithi = Env.typePi e i (Ident ity) x tyA (tyB_e,tyB')
   check eWithi t ty
 
 -- Σ
 check e (Sigma i ity x tyA tyB t , _) ty = do
+  s <- Env.normalizeSort e ity
+
+  let eWithx = Env.addContext e x (Ident tyA)
+  (tyB_e,tyB') <- check eWithx tyB (Sort $ s - 1)
+
   tyA_ty <- Env.getType e tyA
-  () <- assertSubSort e tyA_ty (Ident ity)
-  eWithx <- Env.addContext e x (Ident tyA)
-  tyB_n <- check eWithx tyB (Ident ity)
-  eWithi <- Env.typeSigma e i (Ident ity) x tyA tyB_n
+  () <- assertSubSort e tyA_ty (Sort $ s - 1)
+
+  let eWithi = Env.typeSigma e i (Ident ity) x tyA (tyB_e,tyB')
   check eWithi t ty
 
 -- Fin
 check e (Fin i ity l t , _) ty = do
   () <- assertSubSort e (Sort 1) (Ident ity)
-  eWithi <- Env.typeFin e i (Ident ity) l
+  let eWithi = Env.typeFin e i (Ident ity) l
   check eWithi t ty
 
 -- | Eliminator

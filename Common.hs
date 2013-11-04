@@ -20,10 +20,11 @@ instance Error Doc where
 data TypeInfo
     = Unification Type Type
     | SubSort Type Type
-    | Check Ident Ident String
+    | Check Ident Type String
     | IncompBindings Ident Type Type
     | Abstract Ident
     | UnknownError Doc
+    | Normalize Type String
 
 instance Error TypeInfo where
     strMsg s = UnknownError $ text s
@@ -60,10 +61,15 @@ convert (Left e) =
           text "should be a subsort of" <+> pretty y <> char '.'
       Check i ty s  ->
           throw $
-          introError i <&> introError ty  $+$
+          introError i <&> introError' ty $+$
           text "Type error during the checking of "
           <+> pretty i <+> text "with type" <+> pretty ty
           <+> colon <+> text s
+      Normalize ty s  ->
+          throw $
+          introError' ty $+$
+          text "Type error during normalization of "
+          <+> pretty ty <+> colon <+> text s
       Abstract i ->
           throw $
           introError i $+$

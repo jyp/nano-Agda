@@ -7,6 +7,8 @@ import PPrint
 import Text.PrettyPrint(($$),($+$),(<>),(<+>),text)
 import qualified Text.PrettyPrint as P
 import qualified Terms as T
+import Data.Maybe(fromMaybe)
+import Data.List(find)
 
 import qualified Data.Map as M
 
@@ -131,22 +133,31 @@ getVal e@(Env _ ei ee) (i,_,_) =
       Just x -> Left x
       Nothing -> Right $ ee M.! i
 
-addContext :: Env -> Ident -> T.Type -> TypeError Env
+addContext :: Env -> Ident -> T.Type -> Env
 addContext (Env context ei ee) id@(i,_,_) ty =
     let context' = M.insert i ty context
-    in return (Env context' ei ee)
+    in Env context' ei ee
 
-addBinding :: Env -> Ident -> Definition -> T.Type -> TypeError Env
-addBinding env id@(i,_,_) t ty = do
-  (Env context ei ee) <- addContext env id ty
+addIntro :: Env -> Ident -> Definition -> Env
+addIntro (Env context ei ee) id@(i,_,_) t =
   let ei' = M.insert i t ei
-  return (Env context ei' ee)
+  in Env context ei' ee
+
+addBinding :: Env -> Ident -> Definition -> T.Type -> Env
+addBinding env id t ty =
+  let env' = addContext env id ty in
+  addIntro env' id t
+
+addElim :: Env -> Ident -> Definition -> Env
+addElim (Env context ei ee) id@(i,_,_) t =
+  let elims = fromMaybe [] $ M.lookup i ee
+      ee' = M.insert i (t:elims) ee
+  in Env context ei ee'
 
 addAlias :: Env -> Ident -> Ident -> TypeError Env
 addAlias env x y = do
   ty <- getType env y
-  addBinding env x (Alias y) ty
-
+  return $ addBinding env x (Alias y) ty
 
 -- This function is used to "instanciate" a lambda form :
 -- with the env e, the lambda expression in normal form lam = (x, e', f) applied to x
@@ -199,18 +210,49 @@ normalizePi env i = do
     Pi x tyA tyB -> return (x,tyA,tyB)
     _ -> throw $ Abstract i
 
+normalizeFin :: Env -> T.Type -> TypeError [String]
+normalizeFin env ty =
+  case ty of
+    T.Sort _ ->
+        throw $ Normalize ty "Expected Fin, got Sort."
+    T.Ident i -> do
+        def <- env ! i
+        case def of
+          Fin l -> return l
+          _ -> throw $ Abstract i
+
 
 
 -- Intro Type in the environment
 
-typePi :: Env -> Ident -> T.Type -> Ident -> Ident -> (Env,Ident) -> TypeError Env
+typePi :: Env -> Ident -> T.Type -> Ident -> Ident -> (Env,Ident) -> Env
 typePi env i ty x tyA tyB =
   addBinding env i (Pi x tyA tyB) ty
 
-typeSigma :: Env -> Ident -> T.Type -> Ident -> Ident -> (Env,Ident) -> TypeError Env
-typeSigma env i ty x tyA tyB = do
+typeSigma :: Env -> Ident -> T.Type -> Ident -> Ident -> (Env,Ident) -> Env
+typeSigma env i ty x tyA tyB =
   addBinding env i (Sigma x tyA tyB) ty
 
-typeFin :: Env -> Ident -> T.Type -> [String] -> TypeError Env
+typeFin :: Env -> Ident -> T.Type -> [String] -> Env
 typeFin env i ty l = do
   addBinding env i (Fin l) ty
+
+-- Verify that the definition of a variable has well formed tag intro and elim.
+checkTag :: Env -> Ident -> Bool
+checkTag e@(Env _ ei ee) id@(i,_,_)  =
+    let intro = M.lookup i ei in
+    case intro of
+      Just (Alias i') -> checkTag e i'
+      Just (ITag s) ->
+          let elim = fromMaybe [] $ M.lookup i ee
+              x = find f elim
+              f (ETag _) = True
+              f _ = False
+          in case x of
+               Just (ETag s') | s /= s' -> False
+               _ -> True
+      _ -> True
+
+elimTag :: Env -> Ident -> String -> Env
+elimTag env i s =
+  addIntro env i (ETag s)
