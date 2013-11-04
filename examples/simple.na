@@ -31,3 +31,10 @@ voidpair =
   let fin : star = { 'blu, 'bli } in
   let pair : star² = (x:fin) × voidfin in
   pair
+
+idfin :: voidfin
+idfin =
+  let t : voidfin = 'bla in
+  case t {
+    'bla -> let t : voidfin = 'bla in t
+  }

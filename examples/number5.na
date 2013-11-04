@@ -1,4 +1,10 @@
-star² :: let i3 = *3 in i3
+star⁴ :: let i5 = *5 in i5
+star⁴ = let i4 = *4 in i4
+
+star³ :: star⁴
+star³ = let i3 = *3 in i3
+
+star² :: star³
 star² = let i2 = *2 in i2
 
 star :: star²
@@ -11,6 +17,11 @@ star = let i = * in i
 funℤ/5ℤ :: star²
 funℤ/5ℤ = let t : star² = ( a : ℤ/5ℤ ) -> ℤ/5ℤ in t
 
+binℤ/5ℤ :: star³
+binℤ/5ℤ =
+  let t : star³ = ( a : ℤ/5ℤ ) -> funℤ/5ℤ
+  in t
+
 incr :: funℤ/5ℤ
 incr =
   let f : funℤ/5ℤ = λ n .
@@ -21,4 +32,58 @@ incr =
       '3 -> let r : ℤ/5ℤ = '4 in r
       '4 -> let r : ℤ/5ℤ = '0 in r
     }
+  in f
+
+funT :: star³
+funT =
+  let t : star³ = ( _ : funℤ/5ℤ ) -> funℤ/5ℤ in t
+
+composeIncr :: funT
+composeIncr =
+  let x : funT = λ f .
+    let f' : funℤ/5ℤ = λ n .
+      let n' = incr n in
+      let n'' = f n' in
+      n''
+    in f'
+  in x
+
+repeatT :: star⁴
+repeatT =
+  let t : star⁴ = ( _ : ℤ/5ℤ ) -> funT in
+  t
+
+repeat :: repeatT
+repeat =
+  let f : repeatT = λ n .
+    let f' : funT = λ f .
+      case n {
+      '0 ->
+         let f' : funℤ/5ℤ = λn .
+	   n
+	 in f'
+      '1 ->
+         let f' : funℤ/5ℤ = λn .
+	   let n = f n in n
+	 in f'
+      '2 ->
+         let f' : funℤ/5ℤ = λn .
+	   let n = f n in
+           let n = f n in n
+	 in f'
+      '3 ->
+         let f' : funℤ/5ℤ = λn .
+	   let n = f n in
+           let n = f n in
+           let n = f n in n
+	 in f'
+      '4 ->
+         let f' : funℤ/5ℤ = λn .
+	   let n = f n in
+           let n = f n in
+ 	   let n = f n in
+	   let n = f n in n
+	 in f'
+      }
+    in f'
   in f
