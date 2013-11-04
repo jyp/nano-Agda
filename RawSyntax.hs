@@ -136,9 +136,9 @@ toTerm' e term =
           t' <- toTerm e_i t
           return $ T.Tag i' ty' tag t'
       Case _ i l -> do
-          (e_i,i') <- freshIdent e i
+          let i' = getIdent e i
           let toCases (CaseCont (TTag (_,tag)) t) =
-                  do { t' <- toTerm e_i t ; return (tag,t') }
+                  do { t' <- toTerm e t ; return (tag,t') }
           cases <- mapM toCases l
           return $ T.Case i' cases
       Star _ i s _ t -> do
