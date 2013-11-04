@@ -92,7 +92,23 @@ check e (App i f x t, _) ty = error "check app"
 check e (Proj x y z t, _) ty = error "check proj"
 
 -- case x { 'tagᵢ → <tᵢ> | i = 1..n }
-check e (Case x l, _) ty = error "check case"
+check e (Case x l, _) ty = do
+  let fin = map fst l
+  xty <- Env.getType e x
+  xfin <- Env.normalizeFin e xty
+  () <- if unifyFin xfin fin then return ()
+      else throw $ Check x xty "Case decomposition is not consistent with the type."
+  l <- mapM checkbranch l
+  return $ head $ Maybe.catMaybes l
+  -- I have no idea how to return the multiple branchs of the case in the format (env, var). I know there is always at least one branch so I'm returning the first one. This should be enough for most typechecking purposes.
+      where
+        checkbranch (tag,t) =
+            let e' = Env.elimTag e x tag in
+            if not $ Env.checkTag e x then return Nothing
+            else do check e' t ty >>= return . Just
+
+
+
 
 -- | Introductions
 
@@ -100,16 +116,22 @@ check e (Case x l, _) ty = error "check case"
 check e (Lam i ity x t' t, _) ty = do
   (a, tyA, (etyB,tyB)) <- Env.normalizePi e ity
   let (e', tyB') = Env.instanciate e a (etyB,tyB) x
-  e'Withx <- Env.addContext e' x (Ident tyA)
+  let e'Withx = Env.addContext e' x (Ident tyA)
   t_n <- check e'Withx t' (Ident tyB')
-  eWithi <- Env.addBinding e i (Env.Lam x t_n) (Ident ity)
+  let eWithi = Env.addBinding e i (Env.Lam x t_n) (Ident ity)
   check eWithi t ty
 
 -- let i : S = (x,y) in <t>
 check e (Pair i ity x y t, _) ty = error "check pair"
 
 -- let i : T = 'tagᵢ in <t>
-check e (Tag i ity tag t, _) ty = error "check tag"
+check e (Tag i ity tag t, _) ty = do
+  xfin <- Env.normalizeFin e (Ident ity)
+  () <- if elem tag xfin then return ()
+      else throw $ Check i (Ident ity) "Tag not included in Fin."
+  let e_i = Env.addBinding e i (Env.ITag tag) (Ident ity)
+  check e_i t ty
+
 
 -- | Unification
 
@@ -147,4 +169,12 @@ unifyId e i i' = do
         e' <- Env.addAlias e x x'
         unifyId e' tyB tyB'
 
+    (Env.Fin l1, Env.Fin l2) ->
+         if unifyFin l1 l2 then return ()
+         else throw $ Unification (Ident i) (Ident i')
+
     (_,_) -> throw $ Unification (Ident i) (Ident i')
+
+unifyFin :: [String] -> [String] -> Bool
+unifyFin l1 l2 =
+    List.elem l1 $ List.permutations l2 -- We can do better
