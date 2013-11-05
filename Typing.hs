@@ -88,7 +88,18 @@ check e (Fin i ity l t , _) ty = do
 -- | Eliminator
 
 -- let i = f x in <t>
-check e (App i f x t, _) ty = error "check app"
+check e (App i f x t, _) ty = do
+  fty <- Env.getType e f
+  (a, tyA, (etyB,tyB)) <- Env.normalizePi e fty
+  let (e', tyB') = Env.instanciate e a (etyB,tyB) x
+
+  xty <- Env.getType e x
+  () <- unify e xty (Ident tyA)
+
+  let eWithi = Env.addBinding e i (Env.App f x) (Ident tyB')
+  check eWithi t ty
+
+
 
 
 -- let (x,y) = z in <t>
