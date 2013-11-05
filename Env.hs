@@ -190,6 +190,13 @@ areEqual env@(Env _ e _) id@(i,_,_) id'@(i',_,_) =
       (Just (Alias a), Just (Alias a')) -> areEqual env a a'
       (_ , _) -> False
 
+normalize :: String -> Env -> T.Type -> TypeError Definition
+normalize s e t =
+  case t of
+    T.Sort _ ->
+        throw $ Normalize t "Expected Fin, got Sort."
+    T.Ident i -> e ! i
+
 normalizeSort :: Env -> Ident -> TypeError T.Sort
 normalizeSort env i = do
   def <- env ! i
@@ -203,30 +210,36 @@ normalizeSort' e ty =
       T.Sort s -> return s
       T.Ident i -> normalizeSort e i
 
-normalizePi :: Env -> Ident -> TypeError (Ident, Ident, (Env,Ident))
+normalizePi :: Env -> T.Type -> TypeError (Ident, Ident, (Env,Ident))
 normalizePi env i = do
-  def <- env ! i
+  let s = "Expected Pi."
+  def <- normalize s env i
   case def of
     Pi x tyA tyB -> return (x,tyA,tyB)
-    _ -> throw $ Normalize (T.Ident i) "Expected Pi."
+    _ -> throw $ Normalize i s
 
-normalizeSigma :: Env -> Ident -> TypeError (Ident, Ident, (Env,Ident))
+normalizeSigma :: Env -> T.Type -> TypeError (Ident, Ident, (Env,Ident))
 normalizeSigma env i = do
-  def <- env ! i
+  let s = "Expected Sigma."
+  def <- normalize s env i
   case def of
     Sigma x tyA tyB -> return (x,tyA,tyB)
-    _ -> throw $ Normalize (T.Ident i) "Expected Sigma."
+    _ -> throw $ Normalize i s
 
 normalizeFin :: Env -> T.Type -> TypeError [String]
-normalizeFin env ty =
-  case ty of
-    T.Sort _ ->
-        throw $ Normalize ty "Expected Fin, got Sort."
-    T.Ident i -> do
-        def <- env ! i
-        case def of
-          Fin l -> return l
-          _ -> throw $ Normalize ty "Expected Fin."
+normalizeFin env ty = do
+  let s = "Expected Fin."
+  def <- normalize s env ty
+  case def of
+    Fin l -> return l
+    _ -> throw $ Normalize ty s
+
+normalizeLam :: Env -> Ident -> TypeError (Ident, (Env,Ident))
+normalizeLam env i = do
+  def <- env ! i
+  case def of
+    Lam x t -> return (x,t)
+    _ -> throw $ Normalize (T.Ident i) "Expected Lambda."
 
 -- Verify that the definition of a variable has well formed tag intro and elim.
 checkTag :: Env -> Ident -> Bool

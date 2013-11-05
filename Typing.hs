@@ -117,7 +117,7 @@ check e (Case x l, _) ty = do
 
 -- let i : S = λx.<t'> in <t>
 check e (Lam i ity x t' t, _) ty = do
-  (a, tyA, (etyB,tyB)) <- Env.normalizePi e ity
+  (a, tyA, (etyB,tyB)) <- Env.normalizePi e (Ident ity)
   let (e', tyB') = Env.instanciate e a (etyB,tyB) x
   let e'Withx = Env.addContext e' x (Ident tyA)
   t_n <- check e'Withx t' (Ident tyB')
