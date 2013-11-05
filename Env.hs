@@ -13,7 +13,7 @@ import Data.List(find)
 import qualified Data.Map as M
 
 data Definition
-    = Appl Ident Ident          -- y = f x
+    = App Ident Ident          -- y = f x
     | Lam Ident (Env,Ident)     -- f = λx.t
     | ITag String               -- x = 'tag
     | ETag String               -- x = 'tag
@@ -27,7 +27,7 @@ data Definition
     deriving (Eq)
 
 instance Pretty Definition where
-    pretty (Appl f x) = pretty f <+> pretty x
+    pretty (App f x) = pretty f <+> pretty x
     pretty (Lam i t) = lamP i (pretty t)
     pretty (ITag x) = text x <> intro
     pretty (ETag x) = text x <> elim
@@ -83,7 +83,7 @@ mapNameDef :: (Name -> Name) -> Definition -> Definition
 mapNameDef map def =
     let m = (>~ map) in
     case def of
-      Appl f x -> Appl (m f) (m x)
+      App f x -> App (m f) (m x)
       Lam i (e,x) -> Lam (m i) (mapName map e, m x)
       ITag x -> ITag x
       ETag x -> ETag x
