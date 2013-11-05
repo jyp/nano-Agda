@@ -87,3 +87,22 @@ repeat =
       }
     in f'
   in f
+
+
++ :: binℤ/5ℤ
++ =
+  let f1 : binℤ/5ℤ = λ n1 .
+    let f2 : funℤ/5ℤ = λ n2 .
+      let r = repeat n1 in
+      let r' = r incr in
+      let res = r' n2 in
+      res
+    in f2
+  in f1
+
+test :: ℤ/5ℤ
+test =
+  let n : ℤ/5ℤ = '3 in
+  let f = + n in
+  let x = f n in
+  x
