@@ -160,11 +160,11 @@ addAlias env x y = do
   return $ addBinding env x (Alias y) ty
 
 -- This function is used to "instanciate" a lambda form :
--- with the env e, the lambda expression in normal form lam = (x, e', f) applied to x
--- instanciate e x y lam = (e ++ e'[x:=y], f)
+-- with the env e, the lambda expression in normal form lam = (e', f) applied to x
+-- instanciate e x lam y = (e ++ e'[x:=y], f)
 instanciate :: Env -> Ident -> (Env, Ident) -> Ident -> (Env,Ident)
 instanciate e (x,_,_) (et , f) (y,_,_) =
-    let replace a = if a == x then y else x
+    let replace a = if a == x then y else a
         et' = mapName replace et
         f' = f >~ replace
     in (e ∪ et', f)
