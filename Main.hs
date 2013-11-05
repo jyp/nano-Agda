@@ -37,7 +37,7 @@ main = do
   -- () <- print files
 
   let decsAST = parseFiles files
-  () <- printExn decsAST
+  -- () <- printExn decsAST
 
   let decsTerms = decsAST >>= R.convertFile
   () <- printExn (fmap pretty decsTerms)
