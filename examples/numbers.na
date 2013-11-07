@@ -1,0 +1,122 @@
+-- include stars
+
+ℤ/3ℤ :: star
+ℤ/3ℤ =
+  let fin : star = { '0, '1, '2 } in fin
+
+funℤ/3ℤ :: star²
+funℤ/3ℤ = let t : star² = ( a : ℤ/3ℤ ) -> ℤ/3ℤ in t
+
+binℤ/3ℤ :: star³
+binℤ/3ℤ =
+  let t : star³ = ( a : ℤ/3ℤ ) -> funℤ/3ℤ
+  in t
+
+
+
+boolℤ/3ℤ :: star³
+boolℤ/3ℤ =
+  let b : star³ = ( _ : ℤ/3ℤ ) -> star
+  in b
+
+binboolℤ/3ℤ :: star⁴
+binboolℤ/3ℤ =
+  let t : star⁴ = ( _ : ℤ/3ℤ ) -> boolℤ/3ℤ
+  in t
+
+incr :: funℤ/3ℤ
+incr =
+  let f : funℤ/3ℤ = λ n .
+    case n {
+      '0 -> let r : ℤ/3ℤ = '1 in r
+      '1 -> let r : ℤ/3ℤ = '2 in r
+      '2 -> let r : ℤ/3ℤ = '0 in r
+    }
+  in f
+
+funT :: star³
+funT =
+  let t : star³ = ( _ : funℤ/3ℤ ) -> funℤ/3ℤ in t
+
+composeIncr :: funT
+composeIncr =
+  let x : funT = λ f .
+    let f' : funℤ/3ℤ = λ n .
+      let n' = incr n in
+      let n'' = f n' in
+      n''
+    in f'
+  in x
+
+repeatT :: star⁴
+repeatT =
+  let t : star⁴ = ( _ : ℤ/3ℤ ) -> funT in
+  t
+
+repeat :: repeatT
+repeat =
+  let f : repeatT = λ n .
+    let f' : funT = λ f .
+      case n {
+      '0 ->
+         let f' : funℤ/3ℤ = λn .
+	   n
+	 in f'
+      '1 ->
+         let f' : funℤ/3ℤ = λn .
+	   let n = f n in n
+	 in f'
+      '2 ->
+         let f' : funℤ/3ℤ = λn .
+	   let n = f n in
+           let n = f n in n
+	 in f'
+      }
+    in f'
+  in f
+
+
++ :: binℤ/3ℤ
++ =
+  let f1 : binℤ/3ℤ = λ n1 .
+    let f2 : funℤ/3ℤ = λ n2 .
+      let r = repeat n1 in
+      let r' = r incr in
+      let res = r' n2 in
+      res
+    in f2
+  in f1
+
+== :: binboolℤ/3ℤ
+== =
+  let f1 : binboolℤ/3ℤ = λ n1 .
+    let f2 : boolℤ/3ℤ = λ n2 .
+      case n1 {
+        '0 ->
+        case n1 {
+          '0 -> Unit
+	  '1 -> Bot
+	  '2 -> Bot
+        }
+	'1 ->
+        case n1 {
+          '0 -> Bot
+  	  '1 -> Unit
+	  '2 -> Bot
+        }
+	'2 ->
+        case n1 {
+          '0 -> Bot
+	  '1 -> Bot
+	  '2 -> Unit
+        }
+      }
+    in f2
+  in f1
+
+test :: ℤ/3ℤ
+test =
+  let n : ℤ/3ℤ = '2 in
+  let f = + n in
+  let x = f n in
+  x

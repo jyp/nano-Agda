@@ -1,0 +1,29 @@
+
+Unit :: star
+Unit = let unit : star = { 'unit } in unit
+
+Bot :: star
+Bot = let bot : star = { } in bot
+
+bool :: star
+bool =
+  let bool : star = { 'true , 'false } in bool
+
+true :: bool
+true = let true : bool = 'true in true
+
+false :: bool
+false = let false : bool = 'false in false
+
+
+Tty :: star³
+Tty = let Tty : star³ = (_ : bool) -> star in Tty
+
+T :: Tty
+T =
+  let f : Tty = λ b .
+    case b {
+      'true -> Unit
+      'false -> Bot
+    }
+  in f
