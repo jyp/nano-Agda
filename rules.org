@@ -6,12 +6,12 @@ Var x, y, z, f, s, ty
 
 Term T ::=
   | x | *ᵢ
-  | let x : s = (x:ty)→T' in T
-  | let x : ty = λx.T' in T
+  | let y : s = (x:ty)→T' in T
+  | let y : ty = λx.T' in T
   | let y = f x in T
 
-  | let x : s = (x:ty)×T' in T
-  | let x : ty = (x,y) in T
+  | let y : s = (x:ty)×T' in T
+  | let z : ty = (x,y) in T
   | let (x,y) = z in T
 
   | let x = { 'tagᵢ / i = 1..k } in T
