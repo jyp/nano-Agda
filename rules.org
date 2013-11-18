@@ -1,4 +1,52 @@
+* Syntax
 
+#+begin_src
+
+Var x, y, z, f, s, ty
+
+Term T ::=
+  | x | *ᵢ
+  | let x : s = (x:ty)→T' in T
+  | let x : ty = λx.T' in T
+  | let y = f x in T
+
+  | let x : s = (x:ty)×T' in T
+  | let x : ty = (x,y) in T
+  | let (x,y) = z in T
+
+  | let x = { 'tagᵢ / i = 1..k } in T
+  | let x : ty = 'tagᵢ in T
+  | case x { 'tagᵢ → Tᵢ / i = 1..k }
+
+Types A, B, C = NF
+
+Con c ::=
+  | x | *ᵢ
+  | (x:c)→n | λ(x:c).n
+  | (x:c)×n | (c₁,c₂)
+  | { 'tagᵢ / i = 1..k } | 'tag
+
+NF n ::=
+  | c
+  | let y = f x in n
+  | let (x,y) = z in n
+  | case x { 'tagᵢ → nᵢ / i = 1..k }
+
+#+end_src
+
+* Simple clarification
+
+The typechecker is composed mostly by two functions, 'typecheck' and 'unify'. here is the signature of those :
+
+#+begin_src
+
+typecheck :: Envs -> Term -> Type -> Err NF
+
+unify :: Envs -> NF -> NF -> Err ()
+
+#+end_src
+
+We will note 'unify' by '≡' and 'typecheck' by 'Context | Env ⊢ T', Context being the typing environment and Env the regular one.
 
 * Typing rules
 
@@ -35,8 +83,8 @@ Light abuse of notation, when A:*ᵢ is in the environment, it's valid for every
 Γ, A:*ᵢ₋₁ | Δ ⊢ let σ : *ᵢ = (x:A)×B in t : C
 
 Γ, σ:*₁ | Δ, σ = { 'tagᵢ / i = 1..n } ⊢ t : C
-————————————————————————————————————————————————————————————————————————————
-Γ       | Δ                          ⊢ let σ = { 'tagᵢ / i = 1..n } in t : C
+—————————————————————————————————————————————————————————————————————————————
+Γ       | Δ                           ⊢ let σ = { 'tagᵢ / i = 1..n } in t : C
 
 #+end_src
 
@@ -44,9 +92,9 @@ Light abuse of notation, when A:*ᵢ is in the environment, it's valid for every
 
 #+begin_src
 
-Γ, x:A , y:B, z:(x:A)×B | Δ , z=(x,y)  ⊢                k : C
+Γ, x:A , y:B, z:(x:A)×B | Δ , z=(x,y)ₑ  ⊢                k : C
 ————————————————————————————————————————————————————————————————————————————
-Γ, z:(x:A)×B            | Δ            ⊢ let x,y = z in k : C
+Γ, z:(x:A)×B            | Δ             ⊢ let x,y = z in k : C
 
 
     { Γ, z:{ 'tagᵢ / i = 1..n } | Δ , z='tagᵢ ⊢  kᵢ : C / i = 1..n }
