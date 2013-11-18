@@ -3,6 +3,7 @@ module Common where
 import Data.List(partition)
 import PPrint
 import Terms
+import NormalForm(NF,Type)
 import Names
 import Control.Monad.Error as E
 
@@ -24,7 +25,7 @@ data TypeInfo
     | IncompBindings Ident Type Type
     | Abstract Ident
     | UnknownError Doc
-    | Normalize Type String
+    | Normalize Ident String
 
 instance Error TypeInfo where
     strMsg s = UnknownError $ text s
@@ -42,8 +43,7 @@ introError (_,_,p) =
     text "at position" <+> pretty p <+> colon
 
 introError' :: Type -> Doc
-introError' (Ident i) = introError i
-introError' (Sort _) = empty
+introError' t = pretty t
 
 convert :: TypeError a -> Err a
 convert (Right x) = return x
@@ -67,7 +67,7 @@ convert (Left e) =
           <+> colon <+> text s
       Normalize ty s  ->
           throw $
-          introError' ty $+$
+          introError ty $+$
           text "Type error during normalization of "
           <+> pretty ty <+> colon <+> text s
       Abstract i ->

@@ -1,5 +1,6 @@
 module Names where
 
+import qualified PPrint as P
 import Control.Monad.State
 import Control.Arrow ((&&&))
 
@@ -28,12 +29,24 @@ data Position
     | Point Int Int
       deriving (Ord,Eq)
 
+-- | Pretty positions
+instance P.Pretty Position where
+    pretty (Point l c) = l P.<:> c
+    pretty (Range l1 c1 l2 c2) | l1 == l2 =
+         l1 P.<:> c1 P.<.> c2
+    pretty (Range l1 c1 l2 c2) =
+         l1 P.<.> l2 P.<:> c1 P.<.>  c2
+
 dummyPos :: Position
 dummyPos = Point (-1) (-1)
 
 -- | Identifier aka, Names with source informations
 
 type Ident = (Name,String,Position)
+
+-- | Pretty identifier
+instance P.Pretty Ident where
+    pretty (i,n,_) = P.text n P.<> P.subscriptPretty i
 
 (=~) :: Ident -> Ident -> Bool
 (x,_,_) =~ (y,_,_) = x == y
@@ -68,3 +81,7 @@ freshIdent e (s,p) = do
 
 freshIdentNoPos :: NameEnv -> String -> FreshM (NameEnv,Ident)
 freshIdentNoPos e s = freshIdent e (s,dummyPos)
+
+-- | Sort
+
+type Sort = Int

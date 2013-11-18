@@ -7,23 +7,25 @@ import PPrint
 import Text.PrettyPrint(($$),($+$),(<>),(<+>),text)
 import qualified Text.PrettyPrint as P
 import qualified Terms as T
+import NormalForm(NF,Type)
+import qualified NormalForm as NF
 import Data.Maybe(fromMaybe)
 import Data.List(find)
 
 import qualified Data.Map as M
 
 data Definition
-    = App Ident Ident          -- y = f x
-    | Lam Ident (Env,Ident)     -- f = λx.t
-    | ITag String               -- x = 'tag
-    | ETag String               -- x = 'tag
-    | IPair Ident Ident         -- z = (x,y)
-    | EPair Ident Ident         -- (x,y) = z
-    | Alias Ident               -- z = z'
-    | Pi Ident Ident (Env,Ident)     -- σ = (x:A)→B
-    | Sigma Ident Ident (Env,Ident)  -- σ = (x:A)×B
-    | Fin [String]              -- σ = { 'bla, 'bli, 'blo }
-    | Star Int                  -- σ = *ᵢ
+    = App Ident Ident      -- y = f x
+    | Lam Ident NF         -- f = λx.t
+    | ITag String          -- x = 'tag
+    | ETag String          -- x = 'tag
+    | IPair Ident Ident    -- z = (x,y)
+    | EPair Ident Ident    -- (x,y) = z
+    | Alias Ident          -- z = z'
+    | Pi Ident Ident NF    -- σ = (x:A)→B
+    | Sigma Ident Ident NF -- σ = (x:A)×B
+    | Fin [String]         -- σ = { 'bla, 'bli, 'blo }
+    | Star Int             -- σ = *ᵢ
     deriving (Eq)
 
 instance Pretty Definition where
@@ -39,7 +41,7 @@ instance Pretty Definition where
     pretty (Fin l) = finP l
     pretty (Star i) = sort i
 
-type Context = M.Map Name T.Type
+type Context = M.Map Name Type
 type EnvIntro = M.Map Name Definition
 type EnvElim = M.Map Name [Definition]
 
@@ -72,9 +74,7 @@ instance Pretty (Env, [(Ident, Ident, Ident)]) where
 
 mapName :: (Name -> Name) -> Env -> Env
 mapName f (Env c ei ee) =
-    let mapT f (T.Sort s) = T.Sort s
-        mapT f (T.Ident i) = T.Ident $ f i
-        c'  = M.map (mapT (>~ f)) $ M.mapKeys f c
+    let c'  = M.map (fmap (>~ f)) $ M.mapKeys f c
         ei' = M.map (mapNameDef f) $ M.mapKeys f ei
         ee' = M.map (map $ mapNameDef f) $ M.mapKeys f ee
     in Env c' ei' ee'
@@ -84,14 +84,14 @@ mapNameDef map def =
     let m = (>~ map) in
     case def of
       App f x -> App (m f) (m x)
-      Lam i (e,x) -> Lam (m i) (mapName map e, m x)
+      Lam i t -> Lam (m i) (fmap m t)
       ITag x -> ITag x
       ETag x -> ETag x
       IPair x y -> IPair (m x) (m y)
       EPair x y -> EPair (m x) (m y)
       Alias x -> Alias $ m x
-      Pi x tyA (e,tyB) -> Pi (m x) (m tyA) $ (mapName map e, m tyB)
-      Sigma x tyA (e,tyB) -> Sigma (m x) (m tyA) $ (mapName map e, m tyB)
+      Pi x tyA t -> Pi (m x) (m tyA) $ (fmap m t)
+      Sigma x tyA t -> Sigma (m x) (m tyA) $ (fmap m t)
       Fin l -> Fin l
       Star i -> Star i
 
@@ -99,30 +99,30 @@ mapNameDef map def =
 empty :: Env
 empty = Env M.empty M.empty M.empty
 
-getType :: Env -> Ident -> TypeError T.Type
+getType :: Env -> Ident -> NF
 getType (Env c _ _) ident@(i,_,_) =
     case M.lookup i c of
-      Just t -> return t
+      Just t -> t
       Nothing ->
-          throw . UnknownError $
+          error . show $
           text "Variable" <+> pretty ident <+>
           text "doesn't have a type."
 
-getIntro :: Env -> Ident -> TypeError Definition
+getIntro :: Env -> Ident -> Definition
 getIntro (Env _ e _) ident@(i,_,_) =
     case M.lookup i e of
-      Just t -> return t
+      Just t -> t
       Nothing ->
-          throw . UnknownError $
+          error . show $
           text "Variable" <+> pretty ident <+>
           text "doesn't have an introduction."
 
-getElims :: Env -> Ident -> TypeError [Definition]
+getElims :: Env -> Ident -> [Definition]
 getElims (Env _ _ e) ident@(i,_,_) =
     case M.lookup i e of
-      Just t -> return t
+      Just t -> t
       Nothing ->
-          throw . UnknownError $
+          error . show $
           text "Variable" <+> pretty ident <+>
           text "doesn't have any elimination."
 
@@ -133,7 +133,7 @@ getVal e@(Env _ ei ee) (i,_,_) =
       Just x -> Left x
       Nothing -> Right $ ee M.! i
 
-addContext :: Env -> Ident -> T.Type -> Env
+addContext :: Env -> Ident -> NF -> Env
 addContext (Env context ei ee) id@(i,_,_) ty =
     let context' = M.insert i ty context
     in Env context' ei ee
@@ -143,7 +143,7 @@ addIntro (Env context ei ee) id@(i,_,_) t =
   let ei' = M.insert i t ei
   in Env context ei' ee
 
-addBinding :: Env -> Ident -> Definition -> T.Type -> Env
+addBinding :: Env -> Ident -> Definition -> NF -> Env
 addBinding env id t ty =
   let env' = addContext env id ty in
   addIntro env' id t
@@ -154,10 +154,10 @@ addElim (Env context ei ee) id@(i,_,_) t =
       ee' = M.insert i (t:elims) ee
   in Env context ei ee'
 
-addAlias :: Env -> Ident -> Ident -> TypeError Env
+addAlias :: Env -> Ident -> Ident -> Env
 addAlias env x y = do
-  ty <- getType env y
-  return $ addBinding env x (Alias y) ty
+  let ty = getType env y
+  addBinding env x (Alias y) ty
 
 -- This function is used to "instanciate" a lambda form :
 -- with the env e, the lambda expression in normal form lam = (e', f) applied to x
@@ -190,56 +190,40 @@ areEqual env@(Env _ e _) id@(i,_,_) id'@(i',_,_) =
       (Just (Alias a), Just (Alias a')) -> areEqual env a a'
       (_ , _) -> False
 
-normalize :: String -> Env -> T.Type -> TypeError Definition
-normalize s e t =
-  case t of
-    T.Sort _ ->
-        throw $ Normalize t "Expected Fin, got Sort."
-    T.Ident i -> e ! i
-
-normalizeSort :: Env -> Ident -> TypeError T.Sort
+normalizeSort :: Env -> Ident -> TypeError Sort
 normalizeSort env i = do
   def <- env ! i
   case def of
     Star s -> return s
-    _ -> throw $ Abstract i
+    _ -> throw $ Normalize i "Expected Sort."
 
-normalizeSort' :: Env -> T.Type -> TypeError T.Sort
-normalizeSort' e ty =
-    case ty of
-      T.Sort s -> return s
-      T.Ident i -> normalizeSort e i
-
-normalizePi :: Env -> T.Type -> TypeError (Ident, Ident, (Env,Ident))
+normalizePi :: Env -> Ident -> TypeError (Ident, Ident, NF)
 normalizePi env i = do
-  let s = "Expected Pi."
-  def <- normalize s env i
+  def <- env ! i
   case def of
     Pi x tyA tyB -> return (x,tyA,tyB)
-    _ -> throw $ Normalize i s
+    _ -> throw $ Normalize i "Expected Pi."
 
-normalizeSigma :: Env -> T.Type -> TypeError (Ident, Ident, (Env,Ident))
+normalizeSigma :: Env -> Ident -> TypeError (Ident, Ident, NF)
 normalizeSigma env i = do
-  let s = "Expected Sigma."
-  def <- normalize s env i
+  def <- env ! i
   case def of
     Sigma x tyA tyB -> return (x,tyA,tyB)
-    _ -> throw $ Normalize i s
+    _ -> throw $ Normalize i "Expected Sigma."
 
-normalizeFin :: Env -> T.Type -> TypeError [String]
+normalizeFin :: Env -> Ident -> TypeError [String]
 normalizeFin env ty = do
-  let s = "Expected Fin."
-  def <- normalize s env ty
+  def <- env ! ty
   case def of
     Fin l -> return l
-    _ -> throw $ Normalize ty s
+    _ -> throw $ Normalize ty "Expected Fin."
 
-normalizeLam :: Env -> Ident -> TypeError (Ident, (Env,Ident))
+normalizeLam :: Env -> Ident -> TypeError (Ident, NF)
 normalizeLam env i = do
   def <- env ! i
   case def of
     Lam x t -> return (x,t)
-    _ -> throw $ Normalize (T.Ident i) "Expected Lambda."
+    _ -> throw $ Normalize i "Expected Lambda."
 
 -- Verify that the definition of a variable has well formed tag intro and elim.
 checkTag :: Env -> Ident -> Bool

@@ -4,6 +4,8 @@ module Typing where
 import Common
 import Names
 import Terms
+import NormalForm(NF,Type)
+import qualified NormalForm as NF
 import Env(Env)
 import qualified Env as Env
 import qualified Data.Map as M
@@ -11,92 +13,73 @@ import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 
 
-checkDec :: Env -> (Ident,Term,Term) -> TypeError (Env,(Ident,Ident,Ident))
+checkDec :: Env -> (Ident,Term,Term) -> TypeError (NF,NF)
 checkDec e (i,t,ty) = do
-  (e', ity) <- check e ty (Sort 10) -- HACK
-  (e'', it) <- check e' t (Ident ity)
-  let e_i = Env.addBinding e'' i (Env.Alias it) (Ident ity)
-  return (e_i, (i, it, ity))
+  ty' <- check e ty (NF.sort 10) -- HACK
+  t' <- check e t ty'
+  return (t',ty')
 
 -- | Type checking
 
-
-
-assertSort :: (Sort -> Sort -> Bool) -> Env -> Type -> Type -> TypeError ()
-assertSort f e t t' = do
-  s <- Env.normalizeSort' e t
-  s' <- Env.normalizeSort' e t'
-  if f s s' then return ()
-  else throw $ SubSort t t'
-
-assertSubSort :: Env -> Type -> Type -> TypeError ()
-assertSubSort = assertSort (<=)
-
-assertBelowSort :: Env -> Type -> Type -> TypeError ()
-assertBelowSort = assertSort (<)
-
-check :: Env -> Term -> Type -> TypeError (Env,Ident)
-
+check :: Env -> Term -> Type -> TypeError NF
 
 -- Vars
 check e (Var i, _) ty = do
-  i_ty <- Env.getType e i
+  let i_ty = Env.getType e i
   () <- unify e i_ty ty
-  return (e, i)
+  return $ NF.var i
 
 -- *ᵢ
-check e (Star i s t , _) ty =
-  let eWithi = Env.addBinding e i (Env.Star s) (Sort (s+1))
-  in check eWithi t ty
+check e (Star s , _) ty = undefined
 
 -- | Types
 
 -- Π
-check e (Pi i ity x tyA tyB t , _) ty = do
+check e (Pi i ity x tyA tyB t , pos) ty = do
   s <- Env.normalizeSort e ity
 
-  let eWithx = Env.addContext e x (Ident tyA)
-  tyB' <- check eWithx tyB (Sort $ s - 1)
+  let eWithx = Env.addContext e x (NF.var tyA)
+  tyB' <- check eWithx tyB (NF.sort $ s - 1)
 
-  tyA_ty <- Env.getType e tyA
-  () <- assertSubSort e tyA_ty (Sort $ s - 1)
+  let tyA_ty = Env.getType e tyA
+  () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
 
   let eWithi =
-          Env.addBinding e i (Env.Pi x tyA tyB') (Ident ity)
+          Env.addBinding e i (Env.Pi x tyA tyB') (NF.var ity)
   check eWithi t ty
 
 -- Σ
-check e (Sigma i ity x tyA tyB t , _) ty = do
+check e (Sigma i ity x tyA tyB t , pos) ty = do
   s <- Env.normalizeSort e ity
 
-  let eWithx = Env.addContext e x (Ident tyA)
-  tyB' <- check eWithx tyB (Sort $ s - 1)
+  let eWithx = Env.addContext e x (NF.var tyA)
+  tyB' <- check eWithx tyB (NF.sort $ s - 1)
 
-  tyA_ty <- Env.getType e tyA
-  () <- assertSubSort e tyA_ty (Sort $ s - 1)
+  let tyA_ty = Env.getType e tyA
+  () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
 
   let eWithi =
-          Env.addBinding e i (Env.Sigma x tyA tyB') (Ident ity)
+          Env.addBinding e i (Env.Sigma x tyA tyB') (NF.var ity)
   check eWithi t ty
 
 -- Fin
-check e (Fin i ity l t , _) ty = do
-  () <- assertSubSort e (Sort 1) (Ident ity)
-  let eWithi = Env.addBinding e i (Env.Fin l) (Ident ity)
+check e (Fin i ity l t , pos) ty = do
+  () <- assertSubSort e (NF.sort 1) (NF.var ity)
+  let eWithi = Env.addBinding e i (Env.Fin l) (NF.var ity)
   check eWithi t ty
 
 -- | Eliminator
 
 -- let i = f x in <t>
 check e (App i f x t, _) ty = do
-  fty <- Env.getType e f
-  (a, tyA, (etyB,tyB)) <- Env.normalizePi e fty
-  let (e', tyB') = Env.instanciate e a (etyB,tyB) x
+  let fty = Env.getType e f
+  (a, tyA, tyB) <- Env.normalizePi e fty
+  let tyB' = replaceName a x tyB
 
   xty <- Env.getType e x
-  () <- unify e xty (Ident tyA)
+  () <- unify e xty (NF.var tyA)
 
-  let eWithi = Env.addBinding e i (Env.App f x) (Ident tyB')
+  let eWithi = Env.addBinding e i (Env.App f x) tyB'
   check eWithi t ty
 
 
@@ -128,11 +111,11 @@ check e (Case x l, _) ty = do
 
 -- let i : S = λx.<t'> in <t>
 check e (Lam i ity x t' t, _) ty = do
-  (a, tyA, (etyB,tyB)) <- Env.normalizePi e (Ident ity)
-  let (e', tyB') = Env.instanciate e a (etyB,tyB) x
-  let e'Withx = Env.addContext e' x (Ident tyA)
-  t_n <- check e'Withx t' (Ident tyB')
-  let eWithi = Env.addBinding e i (Env.Lam x t_n) (Ident ity)
+  (a, tyA, tyB) <- Env.normalizePi e (NF.var ity)
+  let (e', tyB') = Env.instanciate e a tyB x
+  let e'Withx = Env.addContext e' x (NF.var tyA)
+  t_n <- check e'Withx t' (NF.var tyB')
+  let eWithi = Env.addBinding e i (Env.Lam x t_n) (NF.var ity)
   check eWithi t ty
 
 -- let i : S = (x,y) in <t>
@@ -140,26 +123,17 @@ check e (Pair i ity x y t, _) ty = error "check pair"
 
 -- let i : T = 'tagᵢ in <t>
 check e (Tag i ity tag t, _) ty = do
-  xfin <- Env.normalizeFin e (Ident ity)
+  xfin <- Env.normalizeFin e (NF.var ity)
   () <- if elem tag xfin then return ()
-      else throw $ Check i (Ident ity) "Tag not included in Fin."
-  let e_i = Env.addBinding e i (Env.ITag tag) (Ident ity)
+      else throw $ Check i (NF.var ity) "Tag not included in Fin."
+  let e_i = Env.addBinding e i (Env.ITag tag) (NF.var ity)
   check e_i t ty
 
 
 -- | Unification
 
 unify :: Env -> Type -> Type -> TypeError ()
-unify e t t' =
-    case t' of
-      Ident i' -> unify' e t i'
-      Sort _ -> assertSubSort e t t'
-
-unify' :: Env -> Type -> Ident -> TypeError ()
-unify' e t i =
-    case t of
-      Ident i' -> unifyId e i' i
-      Sort _ -> assertSubSort e t (Ident i)
+unify = undefined
 
 unifyId :: Env -> Ident -> Ident -> TypeError ()
 unifyId e id id' | Env.areEqual e id id' =
@@ -168,8 +142,8 @@ unifyId e i i' = do
   d <- e Env.! i
   d' <- e Env.! i'
   case (d,d') of
-    (Env.Star _, _) -> assertSubSort e (Ident i) (Ident i')
-    ( _, Env.Star _) -> assertSubSort e (Ident i) (Ident i')
+    (Env.Star _, _) -> assertSubSort e (NF.var i) (NF.var i')
+    ( _, Env.Star _) -> assertSubSort e (NF.var i) (NF.var i')
 
     (Env.Alias z, _) -> unifyId e z i'
     (_, Env.Alias z) -> unifyId e i z
@@ -185,10 +159,26 @@ unifyId e i i' = do
 
     (Env.Fin l1, Env.Fin l2) ->
          if unifyFin l1 l2 then return ()
-         else throw $ Unification (Ident i) (Ident i')
+         else throw $ Unification (NF.var i) (NF.var i')
 
-    (_,_) -> throw $ Unification (Ident i) (Ident i')
+    (_,_) -> throw $ Unification (NF.var i) (NF.var i')
 
 unifyFin :: [String] -> [String] -> Bool
 unifyFin l1 l2 =
     List.elem l1 $ List.permutations l2 -- We can do better
+
+-- | SubSort
+
+assertSort :: (Sort -> Sort -> Bool) -> Env -> Type -> Type -> TypeError ()
+assertSort f e t t' = undefined
+    -- do
+  -- s <- Env.normalizeSort e t
+  -- s' <- Env.normalizeSort e t'
+  -- if f s s' then return ()
+  -- else throw $ SubSort t t'
+
+assertSubSort :: Env -> Type -> Type -> TypeError ()
+assertSubSort = assertSort (<=)
+
+assertBelowSort :: Env -> Type -> Type -> TypeError ()
+assertBelowSort = assertSort (<)

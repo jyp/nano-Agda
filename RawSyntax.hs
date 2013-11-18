@@ -43,7 +43,7 @@ data Term =
  | Fin   Position Ident Ident [Tag]        Position Term
  | Tag   Position Ident Ident Tag          Position Term
  | Case  Position Ident [CaseCont]
- | Star  Position Ident Int                Position Term
+ | Star  Position Int
   deriving (Eq,Ord,Show)
 
 data CaseCont = CaseCont Tag Term
@@ -141,10 +141,10 @@ toTerm' e term =
                   do { t' <- toTerm e t ; return (tag,t') }
           cases <- mapM toCases l
           return $ T.Case i' cases
-      Star _ i s _ t -> do
+      Star _ s -> do
           (e_i,i') <- freshIdent e i
           t' <- toTerm e_i t
-          return $ T.Star i' s t'
+          return $ T.Star s
 
 toTerm :: N.NameEnv -> Term -> N.FreshM T.Term
 toTerm e t = do
