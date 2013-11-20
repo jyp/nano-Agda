@@ -25,7 +25,7 @@ data TypeInfo
     | IncompBindings Ident Type Type
     | Abstract Ident
     | UnknownError Doc
-    | Normalize Ident String
+    | Normalize NF String
 
 instance Error TypeInfo where
     strMsg s = UnknownError $ text s
@@ -67,7 +67,7 @@ convert (Left e) =
           <+> colon <+> text s
       Normalize ty s  ->
           throw $
-          introError ty $+$
+          pretty ty $+$
           text "Type error during normalization of "
           <+> pretty ty <+> colon <+> text s
       Abstract i ->

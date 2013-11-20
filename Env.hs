@@ -7,7 +7,7 @@ import PPrint
 import Text.PrettyPrint(($$),($+$),(<>),(<+>),text)
 import qualified Text.PrettyPrint as P
 import qualified Terms as T
-import NormalForm(NF,Type)
+import NormalForm(NF,Con,Type)
 import qualified NormalForm as NF
 import Data.Maybe(fromMaybe)
 import Data.List(find)
@@ -190,39 +190,44 @@ areEqual env@(Env _ e _) id@(i,_,_) id'@(i',_,_) =
       (Just (Alias a), Just (Alias a')) -> areEqual env a a'
       (_ , _) -> False
 
-normalizeSort :: Env -> Ident -> TypeError Sort
+-- | Normalization
+
+normalize :: Env -> NF -> TypeError Con
+normalize = undefined
+
+normalizeSort :: Env -> NF -> TypeError Sort
 normalizeSort env i = do
-  def <- env ! i
-  case def of
-    Star s -> return s
+  con <- normalize env i
+  case con of
+    NF.Star s -> return s
     _ -> throw $ Normalize i "Expected Sort."
 
-normalizePi :: Env -> Ident -> TypeError (Ident, Ident, NF)
+normalizePi :: Env -> NF -> TypeError (Ident, Ident, NF)
 normalizePi env i = do
-  def <- env ! i
-  case def of
-    Pi x tyA tyB -> return (x,tyA,tyB)
+  con <- normalize env i
+  case con of
+    NF.Pi x tyA tyB -> return (x,tyA,tyB)
     _ -> throw $ Normalize i "Expected Pi."
 
-normalizeSigma :: Env -> Ident -> TypeError (Ident, Ident, NF)
+normalizeSigma :: Env -> NF -> TypeError (Ident, Ident, NF)
 normalizeSigma env i = do
-  def <- env ! i
-  case def of
-    Sigma x tyA tyB -> return (x,tyA,tyB)
+  con <- normalize env i
+  case con of
+    NF.Sigma x tyA tyB -> return (x,tyA,tyB)
     _ -> throw $ Normalize i "Expected Sigma."
 
-normalizeFin :: Env -> Ident -> TypeError [String]
-normalizeFin env ty = do
-  def <- env ! ty
-  case def of
-    Fin l -> return l
-    _ -> throw $ Normalize ty "Expected Fin."
+normalizeFin :: Env -> NF -> TypeError [String]
+normalizeFin env i = do
+  con <- normalize env i
+  case con of
+    NF.Fin l -> return l
+    _ -> throw $ Normalize i "Expected Fin."
 
-normalizeLam :: Env -> Ident -> TypeError (Ident, NF)
+normalizeLam :: Env -> NF -> TypeError (Ident, Ident, NF)
 normalizeLam env i = do
-  def <- env ! i
-  case def of
-    Lam x t -> return (x,t)
+  con <- normalize env i
+  case con of
+    NF.Lam x ty t -> return (x,ty,t)
     _ -> throw $ Normalize i "Expected Lambda."
 
 -- Verify that the definition of a variable has well formed tag intro and elim.

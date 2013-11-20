@@ -13,11 +13,11 @@ import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 
 
-checkDec :: Env -> (Ident,Term,Term) -> TypeError (NF,NF)
+checkDec :: Env -> (Ident,Term,Term) -> TypeError (Ident,NF,NF)
 checkDec e (i,t,ty) = do
   ty' <- check e ty (NF.sort 10) -- HACK
   t' <- check e t ty'
-  return (t',ty')
+  return (i,t',ty')
 
 -- | Type checking
 
@@ -35,9 +35,7 @@ check e (Star s , _) ty = undefined
 -- | Types
 
 -- Π
-check e (Pi i ity x tyA tyB t , pos) ty = do
-  s <- Env.normalizeSort e ity
-
+check e (Pi i s x tyA tyB t , pos) ty = do
   let eWithx = Env.addContext e x (NF.var tyA)
   tyB' <- check eWithx tyB (NF.sort $ s - 1)
 
@@ -45,13 +43,11 @@ check e (Pi i ity x tyA tyB t , pos) ty = do
   () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
 
   let eWithi =
-          Env.addBinding e i (Env.Pi x tyA tyB') (NF.var ity)
+          Env.addBinding e i (Env.Pi x tyA tyB') (NF.sort s)
   check eWithi t ty
 
 -- Σ
-check e (Sigma i ity x tyA tyB t , pos) ty = do
-  s <- Env.normalizeSort e ity
-
+check e (Sigma i s x tyA tyB t , pos) ty = do
   let eWithx = Env.addContext e x (NF.var tyA)
   tyB' <- check eWithx tyB (NF.sort $ s - 1)
 
@@ -59,13 +55,12 @@ check e (Sigma i ity x tyA tyB t , pos) ty = do
   () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
 
   let eWithi =
-          Env.addBinding e i (Env.Sigma x tyA tyB') (NF.var ity)
+          Env.addBinding e i (Env.Sigma x tyA tyB') (NF.sort s)
   check eWithi t ty
 
 -- Fin
-check e (Fin i ity l t , pos) ty = do
-  () <- assertSubSort e (NF.sort 1) (NF.var ity)
-  let eWithi = Env.addBinding e i (Env.Fin l) (NF.var ity)
+check e (Fin i l t , pos) ty = do
+  let eWithi = Env.addBinding e i (Env.Fin l) (NF.sort 1)
   check eWithi t ty
 
 -- | Eliminator
@@ -74,9 +69,9 @@ check e (Fin i ity l t , pos) ty = do
 check e (App i f x t, _) ty = do
   let fty = Env.getType e f
   (a, tyA, tyB) <- Env.normalizePi e fty
-  let tyB' = replaceName a x tyB
+  let tyB' = fmap (a `swapWith` x) tyB
 
-  xty <- Env.getType e x
+  let xty = Env.getType e x
   () <- unify e xty (NF.var tyA)
 
   let eWithi = Env.addBinding e i (Env.App f x) tyB'
@@ -91,7 +86,7 @@ check e (Proj x y z t, _) ty = error "check proj"
 -- case x { 'tagᵢ → <tᵢ> | i = 1..n }
 check e (Case x l, _) ty = do
   let fin = map fst l
-  xty <- Env.getType e x
+  let xty = Env.getType e x
   xfin <- Env.normalizeFin e xty
   () <- if unifyFin xfin fin then return ()
       else throw $ Check x xty "Case decomposition is not consistent with the type."
@@ -112,9 +107,9 @@ check e (Case x l, _) ty = do
 -- let i : S = λx.<t'> in <t>
 check e (Lam i ity x t' t, _) ty = do
   (a, tyA, tyB) <- Env.normalizePi e (NF.var ity)
-  let (e', tyB') = Env.instanciate e a tyB x
-  let e'Withx = Env.addContext e' x (NF.var tyA)
-  t_n <- check e'Withx t' (NF.var tyB')
+  let tyB' = fmap (a `swapWith` x) tyB
+  let e_x = Env.addContext e x (NF.var tyA)
+  t_n <- check e_x t' tyB'
   let eWithi = Env.addBinding e i (Env.Lam x t_n) (NF.var ity)
   check eWithi t ty
 
@@ -148,14 +143,12 @@ unifyId e i i' = do
     (Env.Alias z, _) -> unifyId e z i'
     (_, Env.Alias z) -> unifyId e i z
 
-    (Env.Pi x tyA (eB,tyB), Env.Pi x' tyA' (eB',tyB')) -> do
+    (Env.Pi x tyA tyB, Env.Pi x' tyA' tyB') -> do
       () <- unifyId e tyA tyA'
-      if x =~ x' && tyB =~ tyB' && eB == eB' then
-          return ()
-      else do
-        let Env.Env c ei ee = e Env.∪ eB Env.∪ eB'
-        e' <- Env.addAlias e x x'
-        unifyId e' tyB tyB'
+      if x =~ x' then
+          unify e tyB tyB'
+      else
+          unify e tyB (fmap (x' `swapWith` x) tyB')
 
     (Env.Fin l1, Env.Fin l2) ->
          if unifyFin l1 l2 then return ()

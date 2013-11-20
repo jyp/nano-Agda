@@ -21,7 +21,7 @@ in       { PT $$ T_In }
 'λ'	 { PT _ T_Lambda }
 '.'      { PT _ T_DOT }
 '→'	 { PT _ T_To }
-'*'      { PT _ T_Star }
+'*'      { PT $$ T_Star }
 '×'      { PT _ T_Cross }
 '('	 { PT _ T_PARL }
 ')'	 { PT _ T_PARR }
@@ -73,8 +73,8 @@ Term :: { Term }
 Term : Ident { Var $1 }
 
  -- let i : C = (x:A)→<B> in <t>
-  | let Ident ':' Ident '=' VarType '→' Term in Term
-  { Pi $1 $2      $4        $6          $8   $9 $10 }
+  | let Ident ':' Star '=' VarType '→' Term in Term
+  { Pi $1 $2      (snd $4) $6          $8   $9 $10 }
 
  -- let i : C = λx.<t'> in <t>
   | let Ident ':' Ident '=' 'λ' Ident '.' Term in Term
@@ -85,8 +85,8 @@ Term : Ident { Var $1 }
   { App $1 $2     $4    $5    $6 $7 }
 
  -- let i : C  = (x:A)×<B> in <t>
-  | let Ident ':' Ident '=' VarType Cross Term in Term
-  { Sigma $1 $2   $4        $6            $8   $9 $10 }
+  | let Ident ':' Star '=' VarType Cross Term in Term
+  { Sigma $1 $2   (snd $4) $6            $8   $9 $10 }
 
  -- let i : C = (x,y) in t
   | let Ident ':' Ident '=' Pair in Term
@@ -97,8 +97,8 @@ Term : Ident { Var $1 }
   { Proj $1 $2    $4    $5 $6 }
 
  -- let i : T = { 'tagᵢ | i = 1..n } in <t>
-  | let Ident ':' Ident '=' '{' TagsOrEmpty '}' in Term
-  { Fin $1 $2     $4            $7              $9 $10 }
+  | let Ident '=' '{' TagsOrEmpty '}' in Term
+  { Fin $1 $2         $5              $7 $8 }
 
  -- let i : T = 'tagᵢ in <t>
   | let Ident ':' Ident '=' Tag in Term
@@ -108,9 +108,9 @@ Term : Ident { Var $1 }
   | case Ident '{' ListCaseCont '}'
   { Case $1 $2     $4 }
 
- -- let i = *ᵢ in <t>
-  | let Ident '=' Star in Term
-  { Star $1 $2   $4   $5 $6 }
+ -- *ᵢ
+  | Star
+   { let (pos, i) = $1 in Star pos i }
 
 TagsOrEmpty :: { [Tag] }
 TagsOrEmpty : {- empty -} { [] } | Tags { $1 }
@@ -126,9 +126,9 @@ ListCaseCont : {- empty -} { [] }
 CaseCont :: { CaseCont }
 CaseCont : Tag '→' Term { CaseCont $1 $3 }
 
-Star :: { Int }
-Star : '*' { 1 }
- | '*' T_Int { $2 }
+Star :: { (Position, Int) }
+Star : '*' { ($1, 1) }
+  | '*' T_Int { ($1, $2) }
 
 {
 

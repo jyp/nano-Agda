@@ -58,6 +58,10 @@ infix 7 =~
 
 infix 1 >~
 
+swapWith :: Ident -> Ident -> Ident -> Ident
+swapWith n n' k =
+    if k =~ n then n' else k
+
 getPos :: Ident -> Position
 getPos (_,_,p) = p
 
@@ -85,3 +89,10 @@ freshIdentNoPos e s = freshIdent e (s,dummyPos)
 -- | Sort
 
 type Sort = Int
+
+-- | Pretty declaration
+
+instance (P.Pretty a, P.Pretty b) => P.Pretty (Ident,a,b) where
+    pretty (i,t,ty) =
+        (P.pretty i P.<+> P.dcolons) P.$+> P.pretty ty P.$+$
+        (P.pretty i P.<+> P.equals) P.$+> P.pretty t

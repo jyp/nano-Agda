@@ -34,13 +34,13 @@ type Pair = (Ident, Ident)
 
 data Term =
    Var   Ident
- | Pi    Position Ident Ident VarType Term Position Term
+ | Pi    Position Ident Int VarType Term   Position Term
  | Lam   Position Ident Ident Ident Term   Position Term
  | App   Position Ident Ident Ident        Position Term
- | Sigma Position Ident Ident VarType Term Position Term
+ | Sigma Position Ident Int VarType Term   Position Term
  | Pair  Position Ident Ident Pair         Position Term
  | Proj  Position Pair Ident               Position Term
- | Fin   Position Ident Ident [Tag]        Position Term
+ | Fin   Position Ident [Tag]              Position Term
  | Tag   Position Ident Ident Tag          Position Term
  | Case  Position Ident [CaseCont]
  | Star  Position Int
@@ -72,10 +72,10 @@ getPos t =
       Sigma p _ _ _ _ p' _ -> rangePos p p'
       Pair p _ _ _ p' _ -> rangePos p p'
       Proj p _ _ p' _ -> rangePos p p'
-      Fin p _ _ _ p' _ -> rangePos p p'
+      Fin p _ _ p' _ -> rangePos p p'
       Tag p _ _ _ p' _ -> rangePos p p'
       Case p _ _ -> pointPos p
-      Star p _ _ p' _ -> rangePos p p'
+      Star p _ -> pointPos p
 
 toTerm' :: N.NameEnv -> Term -> N.FreshM T.Term'
 toTerm' e term =
@@ -85,11 +85,10 @@ toTerm' e term =
       Pi _ i s (x,tyA) tyB _ t -> do
           (e_i,i') <- freshIdent e i
           let tyA' = getIdent e tyA
-          let s' = getIdent e s
           (e_x,x') <- freshIdent e x
           tyB' <- toTerm e_x tyB
           t' <- toTerm e_i t
-          return $ T.Pi i' s' x' tyA' tyB' t'
+          return $ T.Pi i' s x' tyA' tyB' t'
       Lam _ i ty x tx _ t -> do
           (e_i,i') <- freshIdent e i
           let ty' = getIdent e ty
@@ -105,12 +104,11 @@ toTerm' e term =
           return $ T.App i' f' x' t'
       Sigma _ i s (x,tyA) tyB _ t -> do
           let tyA' = getIdent e tyA
-          let s' = getIdent e s
           (e_i,i') <- freshIdent e i
           (e_x,x') <- freshIdent e x
           tyB' <- toTerm e_x tyB
           t' <- toTerm e_i t
-          return $ T.Sigma i' s' x' tyA' tyB' t'
+          return $ T.Sigma i' s x' tyA' tyB' t'
       Pair _ i ty (x,y) _ t -> do
           let ty' = getIdent e ty
           (e_i,i') <- freshIdent e i
@@ -124,12 +122,11 @@ toTerm' e term =
           (e_xy,y') <- freshIdent e_x y
           t' <- toTerm e_xy t
           return $ T.Proj x' y' z' t'
-      Fin _ i s l _ t -> do
+      Fin _ i l _ t -> do
           (e_i,i') <- freshIdent e i
-          let s' = getIdent e s
           let l' = map (\ (TTag (_,tag)) -> tag) l
           t' <- toTerm e_i t
-          return $ T.Fin i' s' l' t'
+          return $ T.Fin i' l' t'
       Tag _ i ty (TTag (_,tag))  _ t -> do
           (e_i,i') <- freshIdent e i
           let ty' = getIdent e ty
@@ -142,8 +139,6 @@ toTerm' e term =
           cases <- mapM toCases l
           return $ T.Case i' cases
       Star _ s -> do
-          (e_i,i') <- freshIdent e i
-          t' <- toTerm e_i t
           return $ T.Star s
 
 toTerm :: N.NameEnv -> Term -> N.FreshM T.Term

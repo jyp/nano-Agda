@@ -8,6 +8,7 @@ import Common
 import Names
 import Terms
 import Typing
+import NormalForm(NF)
 import Env
 import System.Environment(getArgs)
 import Control.Monad.Error
@@ -17,10 +18,10 @@ parseFiles l = do
   l' <- mapM (Parser.main . Lexer.alexScanTokens) l
   return (concat l')
 
-checkFiles :: [(Ident,Term,Term)] -> Err (Env, [(Ident, Ident, Ident)])
+checkFiles :: [(Ident,Term,Term)] -> Err ([(Ident,NF,NF)])
 checkFiles decs = do
-  decsT <- scanfoldl
-          (\e s -> convert $ checkDec e s) empty decs
+  decsT <- mapM
+          (\s -> convert $ checkDec empty s) decs
   return decsT
 
 printExn :: Show a => ErrorT e IO a -> IO ()

@@ -1,0 +1,55 @@
+{-# LANGUAGE DeriveFunctor #-}
+module NormalForm where
+
+import Names
+import qualified PPrint as P
+
+data Con' a
+    = Var a
+    | Star Sort
+    | Pi a a (NF' a)
+    | Sigma a a (NF' a)
+    | Fin [String]
+    | Lam a a (NF' a)
+    | Pair a a
+    | Tag String
+    deriving (Functor, Eq)
+
+data NF' a
+    = Con (Con' a)
+    | Case a [(String, NF' a)]
+    | App a a a (NF' a)
+    | Proj a a a (NF' a)
+    deriving (Functor, Eq)
+type Con = Con' Ident
+
+type NF = NF' Ident
+
+type Type = NF
+
+var :: a -> NF' a
+var x = Con $ Var x
+
+sort :: Sort -> NF' a
+sort i = Con $ Star i
+
+-- | Printing
+
+instance P.Pretty a => P.Pretty (Con' a) where
+    pretty a =
+        case a of
+          Var x -> P.pretty x
+          Star s -> P.sort s
+          Pi x c n -> P.piP x c $ P.pretty n
+          Sigma x c n -> P.sigmaP x c $ P.pretty n
+          Fin l -> P.finP l
+          Lam x c n -> P.lamP (x P.<:> c) $ P.pretty n
+          Pair x y -> P.pairP x y
+          Tag s -> P.text s
+
+instance P.Pretty a => P.Pretty (NF' a) where
+    pretty a =
+        case a of
+          Case x l -> P.caseP x $ map (\(s,t') -> (s, P.pretty t')) l
+          App y f x n -> P.letP1 y (P.pretty f P.<+> P.pretty x) (P.pretty n)
+          Proj x y z n -> P.letP2 x y (P.pretty z) (P.pretty n)
