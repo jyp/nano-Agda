@@ -38,8 +38,8 @@ check e (Star s , _) ty = do
 
 -- Π
 check e (Pi i s x tyA tyB t , _pos) ty = do
-  let eWithx = Env.addContext e x (NF.var tyA)
-  tyB' <- check eWithx tyB (NF.sort $ s - 1)
+  let e_x = Env.addContext e x (NF.var tyA)
+  tyB' <- check e_x tyB (NF.sort $ s - 1)
 
   let tyA_ty = Env.getType e tyA
   () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
@@ -49,8 +49,8 @@ check e (Pi i s x tyA tyB t , _pos) ty = do
 
 -- Σ
 check e (Sigma i s x tyA tyB t , _pos) ty = do
-  let eWithx = Env.addContext e x (NF.var tyA)
-  tyB' <- check eWithx tyB (NF.sort $ s - 1)
+  let e_x = Env.addContext e x (NF.var tyA)
+  tyB' <- check e_x tyB (NF.sort $ s - 1)
 
   let tyA_ty = Env.getType e tyA
   () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
@@ -60,8 +60,8 @@ check e (Sigma i s x tyA tyB t , _pos) ty = do
 
 -- Fin
 check e (Fin i l t , _pos) ty = do
-  let eWithi = Env.addBinding e i (Env.Fin l) (NF.sort 1)
-  check eWithi t ty
+  let e_i = Env.addBinding e i (Env.Fin l) (NF.sort 1)
+  check e_i t ty
 
 -- | Eliminator
 
@@ -74,8 +74,8 @@ check e (App i f x t, _pos) ty = do
   let xty = Env.getType e x
   () <- unify e xty (NF.Con tyA)
 
-  let eWithi = Env.addBinding e i (Env.App f x) tyB'
-  check eWithi t ty
+  let e_i = Env.addBinding e i (Env.App f x) tyB'
+  check e_i t ty
 
 
 
@@ -110,8 +110,8 @@ check e (Lam i ity x t' t, _pos) ty = do
   let tyB' = fmap (a `swapWith` x) tyB
   let e_x = Env.addContext e x (NF.Con tyA)
   t_n <- check e_x t' tyB'
-  let eWithi = Env.addBinding e i (Env.Lam x t_n) (NF.var ity)
-  check eWithi t ty
+  let e_i = Env.addBinding e i (Env.Lam x t_n) (NF.var ity)
+  check e_i t ty
 
 -- let i : S = (x,y) in <t>
 check e (Pair i ity x y t, _pos) ty = error "check pair"
@@ -132,7 +132,10 @@ unify :: Env -> Type -> Type -> TypeError ()
 unify e (NF.Con (NF.Var x)) (NF.Con (NF.Var y)) =
     unifyId e x y
 
+
+
 unifyId :: Env -> Ident -> Ident -> TypeError ()
+
 unifyId e i i' | Env.areEqual e i i' =
   return ()
 
