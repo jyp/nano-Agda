@@ -30,7 +30,9 @@ check e (Var i, _) ty = do
   return $ NF.var i
 
 -- *ᵢ
-check e (Star s , _) ty = undefined
+check e (Star s , _) ty = do
+  () <- unify e (NF.sort $ s + 1) ty
+  return (NF.sort s)
 
 -- | Types
 
@@ -110,7 +112,7 @@ check e (Lam i ity x t' t, _) ty = do
   let tyB' = fmap (a `swapWith` x) tyB
   let e_x = Env.addContext e x (NF.var tyA)
   t_n <- check e_x t' tyB'
-  let eWithi = Env.addBinding e i (Env.Lam x t_n) (NF.var ity)
+  let eWithi = Env.addBinding e i (Env.Lam x tyA t_n) (NF.var ity)
   check eWithi t ty
 
 -- let i : S = (x,y) in <t>
@@ -128,33 +130,36 @@ check e (Tag i ity tag t, _) ty = do
 -- | Unification
 
 unify :: Env -> Type -> Type -> TypeError ()
-unify = undefined
+
+unify e (NF.Con (NF.Var x)) (NF.Con (NF.Var y)) =
+    unifyId e x y
 
 unifyId :: Env -> Ident -> Ident -> TypeError ()
 unifyId e id id' | Env.areEqual e id id' =
   return ()
 unifyId e i i' = do
-  d <- e Env.! i
-  d' <- e Env.! i'
-  case (d,d') of
-    (Env.Star _, _) -> assertSubSort e (NF.var i) (NF.var i')
-    ( _, Env.Star _) -> assertSubSort e (NF.var i) (NF.var i')
+  d <- Env.toNF e i
+  d' <- Env.toNF e i'
+  unify e d d'
+  -- case (d,d') of
+  --   (Env.Star _, _) -> assertSubSort e (NF.var i) (NF.var i')
+  --   ( _, Env.Star _) -> assertSubSort e (NF.var i) (NF.var i')
 
-    (Env.Alias z, _) -> unifyId e z i'
-    (_, Env.Alias z) -> unifyId e i z
+  --   (Env.Alias z, _) -> unifyId e z i'
+  --   (_, Env.Alias z) -> unifyId e i z
 
-    (Env.Pi x tyA tyB, Env.Pi x' tyA' tyB') -> do
-      () <- unifyId e tyA tyA'
-      if x =~ x' then
-          unify e tyB tyB'
-      else
-          unify e tyB (fmap (x' `swapWith` x) tyB')
+  --   (Env.Pi x tyA tyB, Env.Pi x' tyA' tyB') -> do
+  --     () <- unifyId e tyA tyA'
+  --     if x =~ x' then
+  --         unify e tyB tyB'
+  --     else
+  --         unify e tyB (fmap (x' `swapWith` x) tyB')
 
-    (Env.Fin l1, Env.Fin l2) ->
-         if unifyFin l1 l2 then return ()
-         else throw $ Unification (NF.var i) (NF.var i')
+  --   (Env.Fin l1, Env.Fin l2) ->
+  --        if unifyFin l1 l2 then return ()
+  --        else throw $ Unification (NF.var i) (NF.var i')
 
-    (_,_) -> throw $ Unification (NF.var i) (NF.var i')
+  --   (_,_) -> throw $ Unification (NF.var i) (NF.var i')
 
 unifyFin :: [String] -> [String] -> Bool
 unifyFin l1 l2 =

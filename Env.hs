@@ -16,21 +16,21 @@ import qualified Data.Map as M
 
 data Definition
     = App Ident Ident      -- y = f x
-    | Lam Ident NF         -- f = λx.t
+    | Lam Ident Ident NF   -- f = λ(x:ty).n
     | ITag String          -- x = 'tag
     | ETag String          -- x = 'tag
     | IPair Ident Ident    -- z = (x,y)
     | EPair Ident Ident    -- (x,y) = z
     | Alias Ident          -- z = z'
-    | Pi Ident Ident NF    -- σ = (x:A)→B
-    | Sigma Ident Ident NF -- σ = (x:A)×B
+    | Pi Ident Ident NF    -- σ = (x:ty)→n
+    | Sigma Ident Ident NF -- σ = (x:ty)×n
     | Fin [String]         -- σ = { 'bla, 'bli, 'blo }
     | Star Int             -- σ = *ᵢ
     deriving (Eq)
 
 instance Pretty Definition where
     pretty (App f x) = pretty f <+> pretty x
-    pretty (Lam i t) = lamP i (pretty t)
+    pretty (Lam i ty t) = lamP (vartype i ty) (pretty t)
     pretty (ITag x) = text x <> intro
     pretty (ETag x) = text x <> elim
     pretty (IPair x y) = pairP x y <> intro
@@ -84,7 +84,7 @@ mapNameDef map def =
     let m = (>~ map) in
     case def of
       App f x -> App (m f) (m x)
-      Lam i t -> Lam (m i) (fmap m t)
+      Lam i ty t -> Lam (m i) (m ty) (fmap m t)
       ITag x -> ITag x
       ETag x -> ETag x
       IPair x y -> IPair (m x) (m y)
@@ -170,6 +170,25 @@ instanciate e (x,_,_) (et , f) (y,_,_) =
     in (e ∪ et', f)
 
 -- | Verification functions
+
+toNF :: Env -> Ident -> TypeError NF
+toNF e i = do
+  def <- e ! i
+  case def of
+    Lam x ty n -> retcon $ NF.Lam x ty n
+    ITag x -> retcon $ NF.Tag x
+    ETag x -> retcon $ NF.Tag x
+    IPair x y -> retcon $ NF.Pair x y
+    EPair x y -> retcon $ NF.Pair x y
+    Pi x tyA t -> retcon $ NF.Pi x tyA t
+    Sigma x tyA t -> retcon $ NF.Sigma x tyA t
+    Fin l -> retcon $ NF.Fin l
+    Star i -> retcon $ NF.Star i
+    App f x -> return $ NF.App i f x (NF.Con $ NF.Var i)
+    Alias x -> toNF e x
+    where retcon = return . NF.Con
+-- WIP
+
 
 (!) :: Env -> Ident -> TypeError Definition
 env@(Env _ e _) ! id@(i,_,_) =
