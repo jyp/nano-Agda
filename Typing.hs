@@ -4,7 +4,7 @@ module Typing where
 import Common
 import Names
 import Terms
-import NormalForm(NF,Type)
+import NormalForm(NF,Con,Type)
 import qualified NormalForm as NF
 import Env(Env)
 import qualified Env as Env
@@ -124,7 +124,6 @@ check e (Tag i ity tag t, _pos) ty = do
   let e_i = Env.addBinding e i (Env.ITag tag) (NF.var ity)
   check e_i t ty
 
-
 -- | Unification
 
 unify :: Env -> Type -> Type -> TypeError ()
@@ -132,36 +131,57 @@ unify :: Env -> Type -> Type -> TypeError ()
 unify e (NF.Con (NF.Var x)) (NF.Con (NF.Var y)) =
     unifyId e x y
 
+unify e (NF.Con (NF.Var x)) y = do
+  dx <- Env.toNF e x
+  unify e dx y
 
+unify e x (NF.Con (NF.Var y)) = do
+  dy <- Env.toNF e y
+  unify e x dy
 
+unify e (NF.Con c) (NF.Con c') =
+    unifyCon e c c'
+
+-- | For variables.
 unifyId :: Env -> Ident -> Ident -> TypeError ()
-
-unifyId e i i' | Env.areEqual e i i' =
-  return ()
-
+unifyId e i i' | Env.areEqual e i i' = return ()
 unifyId e i i' = do
   d <- Env.toNF e i
   d' <- Env.toNF e i'
   unify e d d'
-  -- case (d,d') of
-  --   (Env.Star _, _) -> assertSubSort e (NF.var i) (NF.var i')
-  --   ( _, Env.Star _) -> assertSubSort e (NF.var i) (NF.var i')
 
-  --   (Env.Alias z, _) -> unifyId e z i'
-  --   (_, Env.Alias z) -> unifyId e i z
+-- | For Constructers
+unifyCon :: Env -> Con -> Con -> TypeError ()
 
-  --   (Env.Pi x tyA tyB, Env.Pi x' tyA' tyB') -> do
-  --     () <- unifyId e tyA tyA'
-  --     if x =~ x' then
-  --         unify e tyB tyB'
-  --     else
-  --         unify e tyB (fmap (x' `swapWith` x) tyB')
+unifyCon e c c' =
+  case (c,c') of
+    (NF.Star s, NF.Star s') ->
+        assert $ s <= s'
+    (NF.Fin l, NF.Fin l') ->
+        assert $ unifyFin l l'
+    (NF.Pair c1 c2, NF.Pair c1' c2') -> do
+        () <- unifyCon e c1 c1'
+        unifyCon e c2 c2'
+    (NF.Tag t, NF.Tag t') ->
+        assert $ t == t'
+    (NF.Lam x n, NF.Lam x' n') ->
+        unify e n (fmap (x' `swapWith` x) n')
+    (NF.Pi a tyA tyB, NF.Pi a' tyA' tyB') ->
+        unifyTypes e (a,tyA,tyB) (a',tyA',tyB')
+    (NF.Sigma a tyA tyB, NF.Pi a' tyA' tyB') ->
+        unifyTypes e (a,tyA,tyB) (a',tyA',tyB')
+    (_,_) -> failUni
+  where
+    failUni :: TypeError ()
+    failUni = throw $ Unification (NF.Con c) (NF.Con c')
+    assert b = if b then return () else failUni
 
-  --   (Env.Fin l1, Env.Fin l2) ->
-  --        if unifyFin l1 l2 then return ()
-  --        else throw $ Unification (NF.var i) (NF.var i')
+-- | Utilities for unification
 
-  --   (_,_) -> throw $ Unification (NF.var i) (NF.var i')
+unifyTypes :: Env -> (Ident,Con,NF) -> (Ident,Con,NF) -> TypeError ()
+unifyTypes e (a,tyA,tyB) (a',tyA',tyB') = do
+  () <- unifyCon e tyA tyA'
+  unify e tyB (fmap (a' `swapWith` a) tyB')
 
 unifyFin :: [String] -> [String] -> Bool
 unifyFin l1 l2 =

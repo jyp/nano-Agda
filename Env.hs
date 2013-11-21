@@ -198,7 +198,16 @@ areEqual env@(Env _ e _) ident@(i,_,_) ident'@(i',_,_) =
 -- | Normalization
 
 normalize :: Env -> NF -> TypeError Con
-normalize = undefined
+normalize e n =
+  case n of
+    NF.Con (NF.Var x) -> do
+        dx <- toNF e x
+        normalize e dx
+    NF.Con c -> return c
+    NF.Case x _ -> throw $ Abstract x
+    NF.App x _ _ _ -> throw $ Abstract x
+    NF.Proj x _ _ _ -> throw $ Abstract x
+    -- Todo : reduce when we can.
 
 normalizeSort :: Env -> NF -> TypeError Sort
 normalizeSort env i = do
