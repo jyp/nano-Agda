@@ -4,9 +4,7 @@ import Common
 
 import Names
 import PPrint
-import Text.PrettyPrint(($$),($+$),(<>),(<+>),text)
 import qualified Text.PrettyPrint as P
-import qualified Terms as T
 import NormalForm(NF,Con,Type)
 import qualified NormalForm as NF
 import Data.Maybe(fromMaybe)
@@ -16,7 +14,7 @@ import qualified Data.Map as M
 
 data Definition
     = App Ident Ident      -- y = f x
-    | Lam Ident Ident NF   -- f = λ(x:ty).n
+    | Lam Ident NF         -- f = λx.n
     | ITag String          -- x = 'tag
     | ETag String          -- x = 'tag
     | IPair Ident Ident    -- z = (x,y)
@@ -30,7 +28,7 @@ data Definition
 
 instance Pretty Definition where
     pretty (App f x) = pretty f <+> pretty x
-    pretty (Lam i ty t) = lamP (vartype i ty) (pretty t)
+    pretty (Lam i t) = lamP i (pretty t)
     pretty (ITag x) = text x <> intro
     pretty (ETag x) = text x <> elim
     pretty (IPair x y) = pairP x y <> intro
@@ -80,11 +78,11 @@ mapName f (Env c ei ee) =
     in Env c' ei' ee'
 
 mapNameDef :: (Name -> Name) -> Definition -> Definition
-mapNameDef map def =
-    let m = (>~ map) in
+mapNameDef mapN def =
+    let m = (>~ mapN) in
     case def of
       App f x -> App (m f) (m x)
-      Lam i ty t -> Lam (m i) (m ty) (fmap m t)
+      Lam i t -> Lam (m i) (fmap m t)
       ITag x -> ITag x
       ETag x -> ETag x
       IPair x y -> IPair (m x) (m y)
@@ -134,22 +132,22 @@ getVal e@(Env _ ei ee) (i,_,_) =
       Nothing -> Right $ ee M.! i
 
 addContext :: Env -> Ident -> NF -> Env
-addContext (Env context ei ee) id@(i,_,_) ty =
+addContext (Env context ei ee) (i,_,_) ty =
     let context' = M.insert i ty context
     in Env context' ei ee
 
 addIntro :: Env -> Ident -> Definition -> Env
-addIntro (Env context ei ee) id@(i,_,_) t =
+addIntro (Env context ei ee) (i,_,_) t =
   let ei' = M.insert i t ei
   in Env context ei' ee
 
 addBinding :: Env -> Ident -> Definition -> NF -> Env
-addBinding env id t ty =
-  let env' = addContext env id ty in
-  addIntro env' id t
+addBinding env i t ty =
+  let env' = addContext env i ty in
+  addIntro env' i t
 
 addElim :: Env -> Ident -> Definition -> Env
-addElim (Env context ei ee) id@(i,_,_) t =
+addElim (Env context ei ee) (i,_,_) t =
   let elims = fromMaybe [] $ M.lookup i ee
       ee' = M.insert i (t:elims) ee
   in Env context ei ee'
@@ -159,53 +157,41 @@ addAlias env x y = do
   let ty = getType env y
   addBinding env x (Alias y) ty
 
--- This function is used to "instanciate" a lambda form :
--- with the env e, the lambda expression in normal form lam = (e', f) applied to x
--- instanciate e x lam y = (e ++ e'[x:=y], f)
-instanciate :: Env -> Ident -> (Env, Ident) -> Ident -> (Env,Ident)
-instanciate e (x,_,_) (et , f) (y,_,_) =
-    let replace a = if a == x then y else a
-        et' = mapName replace et
-        f' = f >~ replace
-    in (e ∪ et', f)
-
 -- | Verification functions
 
 toNF :: Env -> Ident -> TypeError NF
 toNF e i = do
   def <- e ! i
   case def of
-    Lam x ty n -> retcon $ NF.Lam x ty n
+    Lam x n -> retcon $ NF.Lam x n
     ITag x -> retcon $ NF.Tag x
     ETag x -> retcon $ NF.Tag x
-    IPair x y -> retcon $ NF.Pair x y
-    EPair x y -> retcon $ NF.Pair x y
-    Pi x tyA t -> retcon $ NF.Pi x tyA t
-    Sigma x tyA t -> retcon $ NF.Sigma x tyA t
+    IPair x y -> retcon $ NF.Pair (NF.Var x) (NF.Var y)
+    EPair x y -> retcon $ NF.Pair (NF.Var x) (NF.Var y)
+    Pi x tyA t -> retcon $ NF.Pi x (NF.Var tyA) t
+    Sigma x tyA t -> retcon $ NF.Sigma x (NF.Var tyA) t
     Fin l -> retcon $ NF.Fin l
-    Star i -> retcon $ NF.Star i
-    App f x -> return $ NF.App i f x (NF.Con $ NF.Var i)
+    Star s -> retcon $ NF.Star s
+    App f x -> return $ NF.App i (NF.Var f) (NF.Var x) (NF.Con $ NF.Var i)
     Alias x -> toNF e x
     where retcon = return . NF.Con
--- WIP
-
 
 (!) :: Env -> Ident -> TypeError Definition
-env@(Env _ e _) ! id@(i,_,_) =
+env@(Env _ e _) ! ident@(i,_,_) =
     case M.lookup i e of
       Just (Alias x) -> env ! x
       Just d -> return d
-      Nothing -> throw $ Abstract id
+      Nothing -> throw $ Abstract ident
 
 infix 9 !
 
 -- Check if i == i', modulo Aliases
 areEqual :: Env -> Ident -> Ident -> Bool
-areEqual env@(Env _ e _) id@(i,_,_) id'@(i',_,_) =
+areEqual env@(Env _ e _) ident@(i,_,_) ident'@(i',_,_) =
     i == i' ||
     case (M.lookup i e , M.lookup i' e) of
-      (Just (Alias a), Nothing) -> areEqual env a id'
-      (Nothing, Just (Alias a')) -> areEqual env id a'
+      (Just (Alias a), Nothing) -> areEqual env a ident'
+      (Nothing, Just (Alias a')) -> areEqual env ident a'
       (Just (Alias a), Just (Alias a')) -> areEqual env a a'
       (_ , _) -> False
 
@@ -221,14 +207,14 @@ normalizeSort env i = do
     NF.Star s -> return s
     _ -> throw $ Normalize i "Expected Sort."
 
-normalizePi :: Env -> NF -> TypeError (Ident, Ident, NF)
+normalizePi :: Env -> NF -> TypeError (Ident, Con, NF)
 normalizePi env i = do
   con <- normalize env i
   case con of
     NF.Pi x tyA tyB -> return (x,tyA,tyB)
     _ -> throw $ Normalize i "Expected Pi."
 
-normalizeSigma :: Env -> NF -> TypeError (Ident, Ident, NF)
+normalizeSigma :: Env -> NF -> TypeError (Ident, Con, NF)
 normalizeSigma env i = do
   con <- normalize env i
   case con of
@@ -242,16 +228,16 @@ normalizeFin env i = do
     NF.Fin l -> return l
     _ -> throw $ Normalize i "Expected Fin."
 
-normalizeLam :: Env -> NF -> TypeError (Ident, Ident, NF)
+normalizeLam :: Env -> NF -> TypeError (Ident, NF)
 normalizeLam env i = do
   con <- normalize env i
   case con of
-    NF.Lam x ty t -> return (x,ty,t)
+    NF.Lam x t -> return (x,t)
     _ -> throw $ Normalize i "Expected Lambda."
 
 -- Verify that the definition of a variable has well formed tag intro and elim.
 checkTag :: Env -> Ident -> Bool
-checkTag e@(Env _ ei ee) id@(i,_,_)  =
+checkTag e@(Env _ ei ee) (i,_,_)  =
     let intro = M.lookup i ei in
     case intro of
       Just (Alias i') -> checkTag e i'

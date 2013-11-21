@@ -2,12 +2,9 @@ module Common where
 
 import Data.List(partition)
 import PPrint
-import Terms
 import NormalForm(NF,Type)
 import Names
 import Control.Monad.Error as E
-
-import Text.PrettyPrint
 
  -- General error
 

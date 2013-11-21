@@ -37,44 +37,42 @@ check e (Star s , _) ty = do
 -- | Types
 
 -- Π
-check e (Pi i s x tyA tyB t , pos) ty = do
+check e (Pi i s x tyA tyB t , _pos) ty = do
   let eWithx = Env.addContext e x (NF.var tyA)
   tyB' <- check eWithx tyB (NF.sort $ s - 1)
 
   let tyA_ty = Env.getType e tyA
   () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
 
-  let eWithi =
-          Env.addBinding e i (Env.Pi x tyA tyB') (NF.sort s)
-  check eWithi t ty
+  let e_i = Env.addBinding e i (Env.Pi x tyA tyB') (NF.sort s)
+  check e_i t ty
 
 -- Σ
-check e (Sigma i s x tyA tyB t , pos) ty = do
+check e (Sigma i s x tyA tyB t , _pos) ty = do
   let eWithx = Env.addContext e x (NF.var tyA)
   tyB' <- check eWithx tyB (NF.sort $ s - 1)
 
   let tyA_ty = Env.getType e tyA
   () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
 
-  let eWithi =
-          Env.addBinding e i (Env.Sigma x tyA tyB') (NF.sort s)
-  check eWithi t ty
+  let e_i = Env.addBinding e i (Env.Sigma x tyA tyB') (NF.sort s)
+  check e_i t ty
 
 -- Fin
-check e (Fin i l t , pos) ty = do
+check e (Fin i l t , _pos) ty = do
   let eWithi = Env.addBinding e i (Env.Fin l) (NF.sort 1)
   check eWithi t ty
 
 -- | Eliminator
 
 -- let i = f x in <t>
-check e (App i f x t, _) ty = do
+check e (App i f x t, _pos) ty = do
   let fty = Env.getType e f
   (a, tyA, tyB) <- Env.normalizePi e fty
   let tyB' = fmap (a `swapWith` x) tyB
 
   let xty = Env.getType e x
-  () <- unify e xty (NF.var tyA)
+  () <- unify e xty (NF.Con tyA)
 
   let eWithi = Env.addBinding e i (Env.App f x) tyB'
   check eWithi t ty
@@ -83,43 +81,43 @@ check e (App i f x t, _) ty = do
 
 
 -- let (x,y) = z in <t>
-check e (Proj x y z t, _) ty = error "check proj"
+check e (Proj x y z t, _pos) ty = error "check proj"
 
 -- case x { 'tagᵢ → <tᵢ> | i = 1..n }
-check e (Case x l, _) ty = do
+check e (Case x l, _pos) ty = do
   let fin = map fst l
   let xty = Env.getType e x
   xfin <- Env.normalizeFin e xty
   () <- if unifyFin xfin fin then return ()
       else throw $ Check x xty "Case decomposition is not consistent with the type."
-  l <- mapM checkbranch l
-  return $ head $ Maybe.catMaybes l
-  -- I have no idea how to return the multiple branchs of the case in the format (env, var). I know there is always at least one branch so I'm returning the first one. This should be enough for most typechecking purposes.
-      where
-        checkbranch (tag,t) =
-            let e' = Env.elimTag e x tag in
-            if not $ Env.checkTag e x then return Nothing
-            else do check e' t ty >>= return . Just
-
-
-
+  l' <- mapM checkbranch l
+  let l_simp = Maybe.catMaybes l'
+  if length l_simp == 1 then
+      return $ snd $ head l_simp
+  else
+      return $ NF.Case x l_simp
+    where
+      checkbranch (tag,t) =
+          let e' = Env.elimTag e x tag in
+          if not $ Env.checkTag e x then return Nothing
+          else do do { t' <- check e' t ty ; return $ Just (tag,t') }
 
 -- | Introductions
 
 -- let i : S = λx.<t'> in <t>
-check e (Lam i ity x t' t, _) ty = do
+check e (Lam i ity x t' t, _pos) ty = do
   (a, tyA, tyB) <- Env.normalizePi e (NF.var ity)
   let tyB' = fmap (a `swapWith` x) tyB
-  let e_x = Env.addContext e x (NF.var tyA)
+  let e_x = Env.addContext e x (NF.Con tyA)
   t_n <- check e_x t' tyB'
-  let eWithi = Env.addBinding e i (Env.Lam x tyA t_n) (NF.var ity)
+  let eWithi = Env.addBinding e i (Env.Lam x t_n) (NF.var ity)
   check eWithi t ty
 
 -- let i : S = (x,y) in <t>
-check e (Pair i ity x y t, _) ty = error "check pair"
+check e (Pair i ity x y t, _pos) ty = error "check pair"
 
 -- let i : T = 'tagᵢ in <t>
-check e (Tag i ity tag t, _) ty = do
+check e (Tag i ity tag t, _pos) ty = do
   xfin <- Env.normalizeFin e (NF.var ity)
   () <- if elem tag xfin then return ()
       else throw $ Check i (NF.var ity) "Tag not included in Fin."
@@ -135,8 +133,9 @@ unify e (NF.Con (NF.Var x)) (NF.Con (NF.Var y)) =
     unifyId e x y
 
 unifyId :: Env -> Ident -> Ident -> TypeError ()
-unifyId e id id' | Env.areEqual e id id' =
+unifyId e i i' | Env.areEqual e i i' =
   return ()
+
 unifyId e i i' = do
   d <- Env.toNF e i
   d' <- Env.toNF e i'
