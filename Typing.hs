@@ -142,6 +142,33 @@ unify e x (NF.Con (NF.Var y)) = do
 unify e (NF.Con c) (NF.Con c') =
     unifyCon e c c'
 
+unify e n@(NF.Case x l) n'@(NF.Case x' l') = do
+  let fin = map fst l
+      fin' = map fst l'
+  (ls, ls') <-
+    if unifyFin fin fin' then
+        return (sortFst l, sortFst l')
+    else throw $ Unification n n'
+  mapM_ uniCase $ zip ls ls'
+      where sortFst = List.sortBy (\ a b -> compare (fst a) (fst b))
+            uniCase (ns,ns') =
+                unify e (snd ns) (fmap (x' `swapWith` x) $ snd ns')
+
+unify e (NF.App x f y n) (NF.App x' f' y' n') = do
+  () <- unifyCon e f f'
+  () <- unifyCon e y y'
+  unify e n (fmap (x' `swapWith` x) n')
+  -- It should work fine, but I have a bad presentiment.
+
+unify e (NF.Proj z x y n) (NF.Proj z' x' y' n') = do
+  () <- unifyCon e x x'
+  () <- unifyCon e y y'
+  unify e n (fmap (z' `swapWith` z) n')
+
+-- Catch all
+unify e n n' = throw $ Unification n n'
+
+
 -- | For variables.
 unifyId :: Env -> Ident -> Ident -> TypeError ()
 unifyId e i i' | Env.areEqual e i i' = return ()
@@ -185,7 +212,8 @@ unifyTypes e (a,tyA,tyB) (a',tyA',tyB') = do
 
 unifyFin :: [String] -> [String] -> Bool
 unifyFin l1 l2 =
-    List.elem l1 $ List.permutations l2 -- We can do better
+    List.sort l1 == List.sort l2
+
 
 -- | SubSort
 
