@@ -167,12 +167,11 @@ unifyFin l1 l2 =
 -- | SubSort
 
 assertSort :: (Sort -> Sort -> Bool) -> Env -> Type -> Type -> TypeError ()
-assertSort f e t t' = undefined
-    -- do
-  -- s <- Env.normalizeSort e t
-  -- s' <- Env.normalizeSort e t'
-  -- if f s s' then return ()
-  -- else throw $ SubSort t t'
+assertSort f e t t' = do
+  s <- Env.normalizeSort e t
+  s' <- Env.normalizeSort e t'
+  if f s s' then return ()
+  else throw $ SubSort t t'
 
 assertSubSort :: Env -> Type -> Type -> TypeError ()
 assertSubSort = assertSort (<=)
