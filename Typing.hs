@@ -77,9 +77,6 @@ check e (App i f x t, _pos) ty = do
   let e_i = Env.addBinding e i (Env.App f x) tyB'
   check e_i t ty
 
-
-
-
 -- let (x,y) = z in <t>
 check e (Proj x y z t, _pos) ty = error "check proj"
 
@@ -124,6 +121,8 @@ check e (Tag i ity tag t, _pos) ty = do
   let e_i = Env.addBinding e i (Env.ITag tag) (NF.var ity)
   check e_i t ty
 
+
+
 -- | Unification
 
 unify :: Env -> Type -> Type -> TypeError ()
@@ -155,15 +154,16 @@ unify e n@(NF.Case x l) n'@(NF.Case x' l') = do
                 unify e (snd ns) (fmap (x' `swapWith` x) $ snd ns')
 
 unify e (NF.App x f y n) (NF.App x' f' y' n') = do
-  () <- unifyCon e f f'
   () <- unifyCon e y y'
-  unify e n (fmap (x' `swapWith` x) n')
+  unify e n (fmap ((x' `swapWith` x) . (f' `swapWith` f)) n')
   -- It should work fine, but I have a bad presentiment.
 
-unify e (NF.Proj z x y n) (NF.Proj z' x' y' n') = do
-  () <- unifyCon e x x'
-  () <- unifyCon e y y'
-  unify e n (fmap (z' `swapWith` z) n')
+unify e (NF.Proj x y z n) (NF.Proj x' y' z' n') = do
+  unify e n (fmap swap n')
+      where swap =
+                (x' `swapWith` x) .
+                (y' `swapWith` y) .
+                (z' `swapWith` z)
 
 -- Catch all
 unify e n n' = throw $ Unification n n'

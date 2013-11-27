@@ -1,5 +1,7 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable #-}
 module NormalForm where
+
+import Data.Foldable
 
 import Names
 import qualified PPrint as P
@@ -13,14 +15,15 @@ data Con' a
     | Lam a (NF' a)
     | Pair (Con' a) (Con' a)
     | Tag String
-    deriving (Functor, Eq)
+    deriving (Functor, Foldable, Eq)
 
 data NF' a
     = Con (Con' a)
     | Case a [(String, NF' a)]
-    | App a (Con' a) (Con' a) (NF' a)
-    | Proj a (Con' a) (Con' a) (NF' a)
-    deriving (Functor, Eq)
+    | App a a (Con' a) (NF' a)
+    | Proj a a a (NF' a)
+    deriving (Functor, Foldable, Eq)
+
 type Con = Con' Ident
 
 type NF = NF' Ident
@@ -32,6 +35,47 @@ var x = Con $ Var x
 
 sort :: Sort -> NF' a
 sort i = Con $ Star i
+
+-- | Substitution
+
+-- We may be able to do better we some Traversable/Foldable magic.
+
+subs :: NF -> Ident -> NF -> NF
+subs t i (Case x l) =
+  Case x (map (\(tag,n) -> (tag, subs t i n)) l)
+subs t i (App y f x n) =
+  App y f x (subs t i n)
+subs t i (Proj x y z n) =
+  Proj x y z (subs t i n)
+subs t i (Con c) =
+  subs' t i c
+
+subs' :: NF -> Ident -> Con -> NF
+subs' (Case x l) i s =
+  Case x (map (\(tag,n) -> (tag, subs' n i s)) l)
+subs' (App y f x n) i c@(Lam a nf) | i =~ f =
+  let x'   = subsC x  i c
+      nf_y = subs' nf a x'
+      n'   = subs  n  y nf_y in
+  subs' n' i c
+subs' (App y f x n) i c = App y f (subsC x i c) (subs' n i c)
+subs' (Proj x y z n) i c@(Pair x' y') | i =~ z =
+  let n_x = subs' n   x x'
+      n_y = subs' n_x y y' in
+  subs' n_y i c
+subs' (Proj x y z n) i c = Proj x y z (subs' n i c)
+subs' (Con c) i s = Con (subsC c i s)
+
+subsC :: Con -> Ident -> Con -> Con
+subsC (Var x) i s | x =~ i = s
+subsC (Pi x c n) i s = Pi x (subsC c i s) (subs' n i s)
+subsC (Sigma x c n) i s = Sigma x (subsC c i s) (subs' n i s)
+subsC (Lam x n) i s = Lam x (subs' n i s)
+subsC (Pair c1 c2) i s = Pair (subsC c1 i s) (subsC c2 i s)
+subsC c@(Var _) _ _ = c
+subsC c@(Fin _) _ _ = c
+subsC c@(Star _) _ _ = c
+subsC c@(Tag _) _ _ = c
 
 -- | Printing
 

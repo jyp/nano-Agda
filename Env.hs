@@ -172,7 +172,7 @@ toNF e i = do
     Sigma x tyA t -> retcon $ NF.Sigma x (NF.Var tyA) t
     Fin l -> retcon $ NF.Fin l
     Star s -> retcon $ NF.Star s
-    App f x -> return $ NF.App i (NF.Var f) (NF.Var x) (NF.Con $ NF.Var i)
+    App f x -> return $ NF.App i f (NF.Var x) (NF.Con $ NF.Var i)
     Alias x -> toNF e x
     where retcon = return . NF.Con
 
@@ -247,12 +247,12 @@ normalizeLam env i = do
 -- Verify that the definition of a variable has well formed tag intro and elim.
 checkTag :: Env -> Ident -> Bool
 checkTag e@(Env _ ei ee) (i,_,_)  =
-    let intro = M.lookup i ei in
-    case intro of
+    let introDef = M.lookup i ei in
+    case introDef of
       Just (Alias i') -> checkTag e i'
       Just (ITag s) ->
-          let elim = fromMaybe [] $ M.lookup i ee
-              x = find f elim
+          let elimDefs = fromMaybe [] $ M.lookup i ee
+              x = find f elimDefs
               f (ETag _) = True
               f _ = False
           in case x of
