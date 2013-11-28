@@ -32,36 +32,24 @@ check e (Var i, _) ty = do
 -- *ᵢ
 check e (Star s , _) ty = do
   () <- unify e (NF.sort $ s + 1) ty
-  return (NF.sort s)
+  return $ NF.sort s
 
 -- | Types
 
 -- Π
-check e (Pi i s x tyA tyB t , _pos) ty = do
-  let e_x = Env.addContext e x (NF.var tyA)
-  tyB' <- check e_x tyB (NF.sort $ s - 1)
-
-  let tyA_ty = Env.getType e tyA
-  () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
-
-  let e_i = Env.addBinding e i (Env.Pi x tyA tyB') (NF.sort s)
-  check e_i t ty
+check e (Pi i s x tyA tyB t , _) ty =
+  checkType NF.Pi e i s x tyA tyB t ty
 
 -- Σ
-check e (Sigma i s x tyA tyB t , _pos) ty = do
-  let e_x = Env.addContext e x (NF.var tyA)
-  tyB' <- check e_x tyB (NF.sort $ s - 1)
-
-  let tyA_ty = Env.getType e tyA
-  () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
-
-  let e_i = Env.addBinding e i (Env.Sigma x tyA tyB') (NF.sort s)
-  check e_i t ty
+check e (Sigma i s x tyA tyB t , _) ty =
+  checkType NF.Sigma e i s x tyA tyB t ty
 
 -- Fin
 check e (Fin i l t , _pos) ty = do
   let e_i = Env.addBinding e i (Env.Fin l) (NF.sort 1)
-  check e_i t ty
+
+  n <- check e_i t ty
+  return $ NF.subs' n i (NF.Fin l)
 
 -- | Eliminator
 
@@ -75,7 +63,10 @@ check e (App i f x t, _pos) ty = do
   () <- unify e xty (NF.Con tyA)
 
   let e_i = Env.addBinding e i (Env.App f x) tyB'
-  check e_i t ty
+
+  n <- check e_i t ty
+  return $ NF.App i f (NF.Var x) n
+
 
 -- let (x,y) = z in <t>
 check e (Proj x y z t, _pos) ty = error "check proj"
@@ -87,17 +78,18 @@ check e (Case x l, _pos) ty = do
   xfin <- Env.normalizeFin e xty
   () <- if unifyFin xfin fin then return ()
       else throw $ Check x xty "Case decomposition is not consistent with the type."
-  l' <- mapM checkbranch l
-  let l_simp = Maybe.catMaybes l'
-  if length l_simp == 1 then
-      return $ snd $ head l_simp
-  else
-      return $ NF.Case x l_simp
+
+  case Env.getIntroOpt e x of
+    Just (Env.ITag tag) ->
+        check e (Maybe.fromJust $ List.lookup tag l) ty
+
+    _ -> do
+      l' <- mapM checkbranch l
+      return $ NF.Case x l'
     where
       checkbranch (tag,t) =
           let e' = Env.elimTag e x tag in
-          if not $ Env.checkTag e x then return Nothing
-          else do do { t' <- check e' t ty ; return $ Just (tag,t') }
+          do { t' <- check e' t ty ; return (tag,t') }
 
 -- | Introductions
 
@@ -108,7 +100,9 @@ check e (Lam i ity x t' t, _pos) ty = do
   let e_x = Env.addContext e x (NF.Con tyA)
   t_n <- check e_x t' tyB'
   let e_i = Env.addBinding e i (Env.Lam x t_n) (NF.var ity)
-  check e_i t ty
+
+  n <- check e_i t ty
+  return $ NF.subs' n i (NF.Lam x t_n)
 
 -- let i : S = (x,y) in <t>
 check e (Pair i ity x y t, _pos) ty = error "check pair"
@@ -119,9 +113,23 @@ check e (Tag i ity tag t, _pos) ty = do
   () <- if elem tag xfin then return ()
       else throw $ Check i (NF.var ity) "Tag not included in Fin."
   let e_i = Env.addBinding e i (Env.ITag tag) (NF.var ity)
-  check e_i t ty
 
+  n <- check e_i t ty
+  return $ NF.subs' n i (NF.Tag tag)
 
+-- | Helpers for Type checking
+
+checkType typeFun e i s x tyA tyB t ty = do
+  let e_x = Env.addContext e x (NF.var tyA)
+  tyB' <- check e_x tyB (NF.sort $ s - 1)
+
+  let tyA_ty = Env.getType e tyA
+  () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
+
+  let e_i = Env.addBinding e i (Env.Pi x tyA tyB') (NF.sort s)
+
+  n <- check e_i t ty
+  return $ NF.subs' n i (typeFun x (NF.Var tyA) tyB')
 
 -- | Unification
 

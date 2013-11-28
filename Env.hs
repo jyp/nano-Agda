@@ -106,13 +106,17 @@ getType (Env c _ _) ident@(i,_,_) =
           text "Variable" <+> pretty ident <+>
           text "doesn't have a type."
 
+getIntroOpt :: Env -> Ident -> Maybe Definition
+getIntroOpt (Env _ e _) (i,_,_) =
+    M.lookup i e
+
 getIntro :: Env -> Ident -> Definition
-getIntro (Env _ e _) ident@(i,_,_) =
-    case M.lookup i e of
+getIntro e i =
+    case getIntroOpt e i of
       Just t -> t
       Nothing ->
           error . show $
-          text "Variable" <+> pretty ident <+>
+          text "Variable" <+> pretty i <+>
           text "doesn't have an introduction."
 
 getElims :: Env -> Ident -> [Definition]
