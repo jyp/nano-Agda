@@ -2,6 +2,8 @@
 module NormalForm where
 
 import Data.Foldable
+import qualified Data.Maybe as Maybe
+import qualified Data.List as List
 
 import Names
 import qualified PPrint as P
@@ -38,7 +40,7 @@ sort i = Con $ Star i
 
 -- | Substitution
 
--- We may be able to do better we some Traversable/Foldable magic.
+-- We may be able to do better with some Traversable/Foldable magic.
 
 subs :: NF -> Ident -> NF -> NF
 subs t i (Case x l) =
@@ -51,6 +53,9 @@ subs t i (Con c) =
   subs' t i c
 
 subs' :: NF -> Ident -> Con -> NF
+subs' (Case x l) i c@(Tag tag) | i =~ x =
+  let branch = Maybe.fromJust $ List.lookup tag l in
+  subs' branch i c
 subs' (Case x l) i s =
   Case x (map (\(tag,n) -> (tag, subs' n i s)) l)
 subs' (App y f x n) i c@(Lam a nf) | i =~ f =
