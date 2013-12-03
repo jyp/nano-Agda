@@ -1,122 +1,108 @@
--- include stars
+Numbers ::
+let ℤ/3ℤ =
+  { '0, '1, '2 }
+in ℤ/3ℤ
 
-ℤ/3ℤ :: star
-ℤ/3ℤ =
-  let fin : star = { '0, '1, '2 } in fin
+Numbers =
 
-funℤ/3ℤ :: star²
-funℤ/3ℤ = let t : star² = ( a : ℤ/3ℤ ) -> ℤ/3ℤ in t
+let Unit = { 'unit } in
+let Bot = { } in
 
-binℤ/3ℤ :: star³
-binℤ/3ℤ =
-  let t : star³ = ( a : ℤ/3ℤ ) -> funℤ/3ℤ
-  in t
+let ℤ/3ℤ =
+  { '0, '1, '2 }
+in
 
+let funℤ/3ℤ : *2 =
+  ( a : ℤ/3ℤ ) -> ℤ/3ℤ
+in
 
+let binℤ/3ℤ : *3 =
+  ( a : ℤ/3ℤ ) -> funℤ/3ℤ
+in
 
-boolℤ/3ℤ :: star³
-boolℤ/3ℤ =
-  let b : star³ = ( _ : ℤ/3ℤ ) -> star
-  in b
+let boolℤ/3ℤ : *3 =
+  ( _ : ℤ/3ℤ ) -> * in
 
-binboolℤ/3ℤ :: star⁴
-binboolℤ/3ℤ =
-  let t : star⁴ = ( _ : ℤ/3ℤ ) -> boolℤ/3ℤ
-  in t
+let binboolℤ/3ℤ : *4 =
+  ( _ : ℤ/3ℤ ) -> boolℤ/3ℤ
+in
 
-incr :: funℤ/3ℤ
-incr =
-  let f : funℤ/3ℤ = λ n .
+let incr : funℤ/3ℤ = λ n .
+  case n {
+    '0 -> let r : ℤ/3ℤ = '1 in r
+    '1 -> let r : ℤ/3ℤ = '2 in r
+    '2 -> let r : ℤ/3ℤ = '0 in r
+  }
+in
+
+let funT : *3 =
+  ( _ : funℤ/3ℤ ) -> funℤ/3ℤ
+in
+
+let composeIncr : funT = λ f .
+  let f' : funℤ/3ℤ = λ n .
+    let n' = incr n in
+    let n'' = f n' in
+    n''
+  in f'
+in
+
+let repeatT : *4 = ( _ : ℤ/3ℤ ) -> funT in
+
+let repeat : repeatT = λ n .
+  let f' : funT = λ f .
     case n {
-      '0 -> let r : ℤ/3ℤ = '1 in r
-      '1 -> let r : ℤ/3ℤ = '2 in r
-      '2 -> let r : ℤ/3ℤ = '0 in r
+    '0 ->
+       let f' : funℤ/3ℤ = λn . n
+       in f'
+    '1 ->
+       let f' : funℤ/3ℤ = λn .
+         let n = f n in n
+       in f'
+    '2 ->
+       let f' : funℤ/3ℤ = λn .
+         let n = f n in
+         let n = f n in n
+       in f'
     }
-  in f
+  in f'
+in
 
-funT :: star³
-funT =
-  let t : star³ = ( _ : funℤ/3ℤ ) -> funℤ/3ℤ in t
+let + : binℤ/3ℤ = λ n1 .
+  let f2 : funℤ/3ℤ = λ n2 .
+    let r = repeat n1 in
+    let r' = r incr in
+    let res = r' n2 in
+    res
+  in f2
+in
 
-composeIncr :: funT
-composeIncr =
-  let x : funT = λ f .
-    let f' : funℤ/3ℤ = λ n .
-      let n' = incr n in
-      let n'' = f n' in
-      n''
-    in f'
-  in x
+-- let == : binboolℤ/3ℤ = λ n1 .
+--   let f2 : boolℤ/3ℤ = λ n2 .
+--     case n1 {
+--       '0 ->
+--       case n1 {
+--         '0 -> Unit
+--   	   '1 -> Bot
+-- 	   '2 -> Bot
+--       }
+--       '1 ->
+--       case n1 {
+--         '0 -> Bot
+-- 	   '1 -> Unit
+--   	   '2 -> Bot
+--       }
+--       '2 ->
+--       case n1 {
+--         '0 -> Bot
+--   	   '1 -> Bot
+--   	   '2 -> Unit
+--       }
+--     }
+--   in f2
+-- in
 
-repeatT :: star⁴
-repeatT =
-  let t : star⁴ = ( _ : ℤ/3ℤ ) -> funT in
-  t
-
-repeat :: repeatT
-repeat =
-  let f : repeatT = λ n .
-    let f' : funT = λ f .
-      case n {
-      '0 ->
-         let f' : funℤ/3ℤ = λn .
-	   n
-	 in f'
-      '1 ->
-         let f' : funℤ/3ℤ = λn .
-	   let n = f n in n
-	 in f'
-      '2 ->
-         let f' : funℤ/3ℤ = λn .
-	   let n = f n in
-           let n = f n in n
-	 in f'
-      }
-    in f'
-  in f
-
-
-+ :: binℤ/3ℤ
-+ =
-  let f1 : binℤ/3ℤ = λ n1 .
-    let f2 : funℤ/3ℤ = λ n2 .
-      let r = repeat n1 in
-      let r' = r incr in
-      let res = r' n2 in
-      res
-    in f2
-  in f1
-
-== :: binboolℤ/3ℤ
-== =
-  let f1 : binboolℤ/3ℤ = λ n1 .
-    let f2 : boolℤ/3ℤ = λ n2 .
-      case n1 {
-        '0 ->
-        case n1 {
-          '0 -> Unit
-	  '1 -> Bot
-	  '2 -> Bot
-        }
-	'1 ->
-        case n1 {
-          '0 -> Bot
-  	  '1 -> Unit
-	  '2 -> Bot
-        }
-	'2 ->
-        case n1 {
-          '0 -> Bot
-	  '1 -> Bot
-	  '2 -> Unit
-        }
-      }
-    in f2
-  in f1
-
-test :: ℤ/3ℤ
-test =
-  let n : ℤ/3ℤ = '2 in
-  let f = + n in
-  let x = f n in
-  x
+let n : ℤ/3ℤ = '2 in
+let f = + n in
+let x = f n in
+x
