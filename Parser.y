@@ -96,7 +96,7 @@ Term : Ident { Var $1 }
   | let Pair  '=' Ident in Term
   { Proj $1 $2    $4    $5 $6 }
 
- -- let i : T = { 'tagᵢ | i = 1..n } in <t>
+ -- let i = { 'tagᵢ | i = 1..n } in <t>
   | let Ident '=' '{' TagsOrEmpty '}' in Term
   { Fin $1 $2         $5              $7 $8 }
 
