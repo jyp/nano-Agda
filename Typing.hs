@@ -69,7 +69,24 @@ check e (App i f x t, _pos) ty = do
 
 
 -- let (x,y) = z in <t>
-check e (Proj x y z t, _pos) ty = error "check proj"
+check e (Proj x y z t, _pos) ty = do
+  let zty = Env.getType e z
+  (a, tyA, tyB) <- Env.normalizeSigma e zty
+  let tyB' = fmap (a `swapWith` x) tyB
+
+  case Env.getIntroOpt e z of
+    Just (Env.IPair x' y') -> do
+      let e_x = Env.addAlias e x' x
+      let e_xy = Env.addAlias e y' y
+      n <- check e_xy t ty
+      return $
+        NF.subs' (NF.subs' n x' (NF.Var x)) y' (NF.Var y)
+
+    _ -> do
+      let e_z = Env.addElim e z (Env.EPair x y)
+      n <- check e_z t ty
+      return $
+        NF.Proj x y z n
 
 -- case x { 'tagᵢ → <tᵢ> | i = 1..n }
 check e (Case x l, _pos) ty = do
@@ -105,7 +122,19 @@ check e (Lam i ity x t' t, _pos) ty = do
   return $ NF.subs' n i (NF.Lam x t_n)
 
 -- let i : S = (x,y) in <t>
-check e (Pair i ity x y t, _pos) ty = error "check pair"
+check e (Pair i ity x y t, _pos) ty = do
+  (a, tyA, tyB) <- Env.normalizeSigma e (NF.var ity)
+
+  _x_n <- check e (var x) (NF.Con tyA)
+
+  let tyB' = fmap (a `swapWith` x) tyB
+  let e_x = Env.addContext e x (NF.Con tyA)
+  _y_n <- check e_x (var y) tyB'
+
+  let e_i = Env.addBinding e i (Env.IPair x y) (NF.var ity)
+
+  n <- check e_i t ty
+  return $ NF.subs' n i (NF.Pair (NF.Var x) (NF.Var y))
 
 -- let i : T = 'tagᵢ in <t>
 check e (Tag i ity tag t, _pos) ty = do

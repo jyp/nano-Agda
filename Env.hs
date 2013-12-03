@@ -266,4 +266,4 @@ checkTag e@(Env _ ei ee) (i,_,_)  =
 
 elimTag :: Env -> Ident -> String -> Env
 elimTag env i s =
-  addIntro env i (ETag s)
+  addElim env i (ETag s)

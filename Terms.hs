@@ -30,6 +30,9 @@ type TLoc name ref = (TLoc' name ref, Position)
 type Term' = TLoc' Ident Ident
 type Term = TLoc Ident Ident
 
+var :: Ident -> Term
+var i@(_,_,p) = (Var i, p)
+
 -- | Name manipulation
 
 mapName :: (a -> b) -> TLoc a a -> TLoc b b
