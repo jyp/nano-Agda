@@ -1,29 +1,26 @@
 
-Unit :: star
-Unit = let unit : star = { 'unit } in unit
+Bool ::
 
-Bot :: star
-Bot = let bot : star = { } in bot
+let Unit = { 'unit } in Unit
 
-bool :: star
-bool =
-  let bool : star = { 'true , 'false } in bool
+Bool =
+let Unit = { 'unit } in
 
-true :: bool
-true = let true : bool = 'true in true
+let Bot = { } in
 
-false :: bool
-false = let false : bool = 'false in false
+let bool = { 'true , 'false } in
 
+let true : bool = 'true in
 
-Tty :: star³
-Tty = let Tty : star³ = (_ : bool) -> star in Tty
+let false : bool = 'false in
 
-T :: Tty
-T =
-  let f : Tty = λ b .
-    case b {
-      'true -> Unit
-      'false -> Bot
-    }
-  in f
+let Tty : *3 = (_ : bool) -> * in
+
+let T : Tty = λ b .
+  case b {
+    'true -> Unit
+    'false -> Bot
+  }
+in
+
+let x : Unit = 'unit in x

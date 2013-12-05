@@ -1,33 +1,19 @@
--- include stars
 
-voidfin :: star
-voidfin =
-  let fin : star = { 'bla } in fin
+Simple ::
+let fin = { 'bla } in
+fin
 
-pairdep :: star²
-pairdep =
-  let p : star² = ( x : star ) * x in p
+Simple =
 
-sig_pairing :: star³
-sig_pairing =
-  let i : star³ = ( _ : star) -> star²
-  in i
+let fin = { 'bla } in
 
-pairing :: sig_pairing
-pairing =
-  let f : sig_pairing = λ x .
-    let r : star² = ( _ : x ) × x in r
-  in f
+let finFun : *2 = _:fin -> fin in
 
-voidpair :: star²
-voidpair =
-  let fin : star = { 'blu, 'bli } in
-  let pair : star² = (x:fin) × voidfin in
-  pair
-
-idfin :: voidfin
-idfin =
-  let t : voidfin = 'bla in
-  case t {
-    'bla -> let t : voidfin = 'bla in t
+let t : fin = 'bla in
+let g : finFun = λ x .
+  case x {
+    'bla -> let r : fin = 'bla in r
   }
+in
+let r = g t in
+r
