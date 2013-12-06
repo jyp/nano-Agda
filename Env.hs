@@ -98,8 +98,8 @@ empty :: Env
 empty = Env M.empty M.empty M.empty
 
 getType :: Env -> Ident -> NF
-getType (Env c _ _) ident@(i,_,_) =
-    case M.lookup i c of
+getType (Env c _ _) ident =
+    case M.lookup (getN ident) c of
       Just t -> t
       Nothing ->
           error . show $
@@ -107,8 +107,8 @@ getType (Env c _ _) ident@(i,_,_) =
           text "doesn't have a type."
 
 getIntroOpt :: Env -> Ident -> Maybe Definition
-getIntroOpt (Env _ e _) (i,_,_) =
-    M.lookup i e
+getIntroOpt (Env _ e _) i =
+    M.lookup (getN i) e
 
 getIntro :: Env -> Ident -> Definition
 getIntro e i =
@@ -120,8 +120,8 @@ getIntro e i =
           text "doesn't have an introduction."
 
 getElims :: Env -> Ident -> [Definition]
-getElims (Env _ _ e) ident@(i,_,_) =
-    case M.lookup i e of
+getElims (Env _ _ e) ident =
+    case M.lookup (getN ident) e of
       Just t -> t
       Nothing ->
           error . show $
@@ -129,20 +129,20 @@ getElims (Env _ _ e) ident@(i,_,_) =
           text "doesn't have any elimination."
 
 getVal :: Env -> Ident -> Either Definition [Definition]
-getVal e@(Env _ ei ee) (i,_,_) =
-    case M.lookup i ei of
+getVal e@(Env _ ei ee) i =
+    case M.lookup (getN i) ei of
       Just (Alias x) -> getVal e x
       Just x -> Left x
-      Nothing -> Right $ ee M.! i
+      Nothing -> Right $ ee M.! (getN i)
 
 addContext :: Env -> Ident -> NF -> Env
-addContext (Env context ei ee) (i,_,_) ty =
-    let context' = M.insert i ty context
+addContext (Env context ei ee) i ty =
+    let context' = M.insert (getN i) ty context
     in Env context' ei ee
 
 addIntro :: Env -> Ident -> Definition -> Env
-addIntro (Env context ei ee) (i,_,_) t =
-  let ei' = M.insert i t ei
+addIntro (Env context ei ee) i t =
+  let ei' = M.insert (getN i) t ei
   in Env context ei' ee
 
 addBinding :: Env -> Ident -> Definition -> NF -> Env
@@ -151,9 +151,9 @@ addBinding env i t ty =
   addIntro env' i t
 
 addElim :: Env -> Ident -> Definition -> Env
-addElim (Env context ei ee) (i,_,_) t =
-  let elims = fromMaybe [] $ M.lookup i ee
-      ee' = M.insert i (t:elims) ee
+addElim (Env context ei ee) i t =
+  let elims = fromMaybe [] $ M.lookup (getN i) ee
+      ee' = M.insert (getN i) (t:elims) ee
   in Env context ei ee'
 
 addAlias :: Env -> Ident -> Ident -> Env
@@ -181,8 +181,8 @@ toNF e i = do
     where retcon = return . NF.Con
 
 (!) :: Env -> Ident -> TypeError Definition
-env@(Env _ e _) ! ident@(i,_,_) =
-    case M.lookup i e of
+env@(Env _ e _) ! ident =
+    case M.lookup (getN ident) e of
       Just (Alias x) -> env ! x
       Just d -> return d
       Nothing -> throw $ Abstract ident
@@ -191,9 +191,9 @@ infix 9 !
 
 -- Check if i == i', modulo Aliases
 areEqual :: Env -> Ident -> Ident -> Bool
-areEqual env@(Env _ e _) ident@(i,_,_) ident'@(i',_,_) =
-    i == i' ||
-    case (M.lookup i e , M.lookup i' e) of
+areEqual env@(Env _ e _) ident ident' =
+    ident == ident' ||
+    case (M.lookup (getN ident) e , M.lookup (getN ident') e) of
       (Just (Alias a), Nothing) -> areEqual env a ident'
       (Nothing, Just (Alias a')) -> areEqual env ident a'
       (Just (Alias a), Just (Alias a')) -> areEqual env a a'
@@ -250,12 +250,12 @@ normalizeLam env i = do
 
 -- Verify that the definition of a variable has well formed tag intro and elim.
 checkTag :: Env -> Ident -> Bool
-checkTag e@(Env _ ei ee) (i,_,_)  =
-    let introDef = M.lookup i ei in
+checkTag e@(Env _ ei ee) i  =
+    let introDef = M.lookup (getN i) ei in
     case introDef of
       Just (Alias i') -> checkTag e i'
       Just (ITag s) ->
-          let elimDefs = fromMaybe [] $ M.lookup i ee
+          let elimDefs = fromMaybe [] $ M.lookup (getN i) ee
               x = find f elimDefs
               f (ETag _) = True
               f _ = False

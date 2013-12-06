@@ -31,7 +31,7 @@ type Term' = TLoc' Ident Ident
 type Term = TLoc Ident Ident
 
 var :: Ident -> Term
-var i@(_,_,p) = (Var i, p)
+var i = (Var i, getPos i)
 
 -- | Name manipulation
 

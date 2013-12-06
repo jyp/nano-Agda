@@ -53,26 +53,33 @@ subs t i (Con c) =
   subs' t i c
 
 subs' :: NF -> Ident -> Con -> NF
-subs' (Case x l) i c@(Tag tag) | i =~ x =
+
+subs' (Case x l) i c@(Tag tag) | i == x =
   let branch = Maybe.fromJust $ List.lookup tag l in
   subs' branch i c
 subs' (Case x l) i s =
-  Case x (map (\(tag,n) -> (tag, subs' n i s)) l)
-subs' (App y f x n) i c@(Lam a nf) | i =~ f =
-  let x'   = subsC x  i c
+  Case x (map f l)
+       where
+         f (tag,n) = (tag, subs' n i s)
+
+subs' (App y f x n) i c@(Lam a nf) | i == f =
+  let x'   = subsC x  f c
       nf_y = subs' nf a x'
       n'   = subs  n  y nf_y in
-  subs' n' i c
-subs' (App y f x n) i c = App y f (subsC x i c) (subs' n i c)
-subs' (Proj x y z n) i c@(Pair x' y') | i =~ z =
+  subs' n' f c
+subs' (App y f x n) i c =
+    App y f (subsC x i c) (subs' n i c)
+
+subs' (Proj x y z n) i c@(Pair x' y') | i == z =
   let n_x = subs' n   x x'
       n_y = subs' n_x y y' in
   subs' n_y i c
-subs' (Proj x y z n) i c = Proj x y z (subs' n i c)
+subs' (Proj x y z n) i c =
+    Proj x y z (subs' n i c)
 subs' (Con c) i s = Con (subsC c i s)
 
 subsC :: Con -> Ident -> Con -> Con
-subsC (Var x) i s | x =~ i = s
+subsC (Var x) i s | x == i = s
 subsC (Pi x c n) i s = Pi x (subsC c i s) (subs' n i s)
 subsC (Sigma x c n) i s = Sigma x (subsC c i s) (subs' n i s)
 subsC (Lam x n) i s = Lam x (subs' n i s)

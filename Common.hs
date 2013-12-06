@@ -36,8 +36,8 @@ catch :: MonadError e m => m a -> (e -> m a) -> m a
 catch = E.catchError
 
 introError :: Ident -> Doc
-introError (_,_,p) =
-    text "at position" <+> pretty p <+> colon
+introError i =
+    text "at position" <+> pretty (getPos i) <+> colon
 
 introError' :: Type -> Doc
 introError' t = pretty t
