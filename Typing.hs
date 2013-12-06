@@ -218,6 +218,12 @@ unifyCon :: Env -> Con -> Con -> TypeError ()
 
 unifyCon e c c' =
   case (c,c') of
+    (NF.Var x, _) -> do
+        dx <- Env.toNF e x
+        unify e dx (NF.Con c')
+    (_, NF.Var x) -> do
+        dx <- Env.toNF e x
+        unify e (NF.Con c) dx
     (NF.Star s, NF.Star s') ->
         assert $ s <= s'
     (NF.Fin l, NF.Fin l') ->
