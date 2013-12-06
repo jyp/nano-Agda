@@ -76,7 +76,7 @@ check e (Proj x y z t, _pos) ty = do
   case Env.getIntroOpt e z of
     Just (Env.IPair x' y') -> do
       let e_x = Env.addAlias e x' x
-      let e_xy = Env.addAlias e y' y
+      let e_xy = Env.addAlias e_x y' y
       n <- check e_xy t ty
       return $
         NF.subs' (NF.subs' n x' (NF.Var x)) y' (NF.Var y)
