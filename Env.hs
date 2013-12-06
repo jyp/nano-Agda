@@ -176,7 +176,7 @@ toNF e i = do
     Sigma x tyA t -> retcon $ NF.Sigma x (NF.Var tyA) t
     Fin l -> retcon $ NF.Fin l
     Star s -> retcon $ NF.Star s
-    App f x -> return $ NF.App i f (NF.Var x) (NF.Con $ NF.Var i)
+    App f x -> return $ NF.App i f (NF.Var x) (NF.var i)
     Alias x -> toNF e x
     where retcon = return . NF.Con
 

@@ -130,6 +130,9 @@ letP2 i1 i2 = letP $ pairP i1 i2
 
 -- | Pretty Stuff
 
+showP :: Pretty a => a -> String
+showP x = show (pretty x)
+
 instance Pretty a => Pretty [a] where
     pretty l = vcat $ map pretty l
 

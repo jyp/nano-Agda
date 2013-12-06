@@ -71,8 +71,7 @@ check e (App i f x t, _pos) ty = do
 -- let (x,y) = z in <t>
 check e (Proj x y z t, _pos) ty = do
   let zty = Env.getType e z
-  (a, tyA, tyB) <- Env.normalizeSigma e zty
-  let tyB' = fmap (a `swapWith` x) tyB
+  _ <- Env.normalizeSigma e zty
 
   case Env.getIntroOpt e z of
     Just (Env.IPair x' y') -> do
@@ -203,7 +202,7 @@ unify e (NF.Proj x y z n) (NF.Proj x' y' z' n') = do
                 (z' `swapWith` z)
 
 -- Catch all
-unify e n n' = throw $ Unification n n'
+unify _e n n' = throw $ Unification n n'
 
 
 -- | For variables.
