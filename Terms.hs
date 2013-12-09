@@ -62,14 +62,14 @@ instance (P.Pretty a, P.Pretty b) => P.Pretty (TLoc' a b) where
           Var i -> P.pretty i
 
           Pi i s x tyA tyB t' ->
-              P.letP (P.vartype i s) (P.piP x tyA $ P.pretty tyB) (P.pretty t')
+              P.letP (P.vartype i $ P.sort s) (P.piP x tyA $ P.pretty tyB) (P.pretty t')
           Lam i ty x tfun t' ->
               P.letP (P.vartype i ty) (P.lamP x $ P.pretty tfun) (P.pretty t')
           App i f x t' ->
               P.letP1 i (P.pretty f P.<+> P.pretty x) (P.pretty t')
 
           Sigma i s x tyA tyB t' ->
-              P.letP (P.vartype i s) (P.sigmaP x tyA $ P.pretty tyB) (P.pretty t')
+              P.letP (P.vartype i $ P.sort s) (P.sigmaP x tyA $ P.pretty tyB) (P.pretty t')
           Pair i ty x y t' ->
               P.letP (P.vartype i ty) (P.pairP x y) (P.pretty t')
           Proj i1 i2 z t' ->
