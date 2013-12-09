@@ -11,7 +11,16 @@ import qualified Env as Env
 import qualified Data.Map as M
 import qualified Data.Maybe as Maybe
 import qualified Data.List as List
+import Control.Monad(foldM)
 
+
+checkDecs :: Env -> [(Ident,Term,Term)] -> TypeError Env
+checkDecs env l =
+    let f e def = do
+          (i,t,ty) <- checkDec e def
+          return $ Env.addBinding e i (Env.Def t) ty
+    in
+    foldM f env l
 
 checkDec :: Env -> (Ident,Term,Term) -> TypeError (Ident,NF,NF)
 checkDec e (i,t,ty) = do

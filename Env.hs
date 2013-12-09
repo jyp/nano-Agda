@@ -24,6 +24,7 @@ data Definition
     | Sigma Ident Ident NF -- σ = (x:ty)×n
     | Fin [String]         -- σ = { 'bla, 'bli, 'blo }
     | Star Int             -- σ = *ᵢ
+    | Def NF
     deriving (Eq)
 
 instance Pretty Definition where
@@ -38,6 +39,7 @@ instance Pretty Definition where
     pretty (Sigma x tyA tyB) = sigmaP x tyA $ pretty tyB
     pretty (Fin l) = finP l
     pretty (Star i) = sort i
+    pretty (Def t) = pretty t
 
 type Context = M.Map Name Type
 type EnvIntro = M.Map Name Definition
@@ -92,6 +94,7 @@ mapNameDef mapN def =
       Sigma x tyA t -> Sigma (m x) (m tyA) $ (fmap m t)
       Fin l -> Fin l
       Star i -> Star i
+      Def t -> Def (fmap m t)
 
 
 empty :: Env
@@ -178,6 +181,7 @@ toNF e i = do
     Star s -> retcon $ NF.Star s
     App f x -> return $ NF.App i f (NF.Var x) (NF.var i)
     Alias x -> toNF e x
+    Def t -> return t
     where retcon = return . NF.Con
 
 (!) :: Env -> Ident -> TypeError Definition
