@@ -212,9 +212,9 @@ normalize e n =
         dx <- toNF e x
         normalize e dx
     NF.Con c -> return c
+    NF.App _ f _ _ -> throw $ Abstract f
     NF.Case x _ -> throw $ Abstract x
-    NF.App x _ _ _ -> throw $ Abstract x
-    NF.Proj x _ _ _ -> throw $ Abstract x
+    NF.Proj _ _ z _ -> throw $ Abstract z
     -- Todo : reduce when we can.
 
 normalizeSort :: Env -> NF -> TypeError Sort
