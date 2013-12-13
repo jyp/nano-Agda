@@ -168,10 +168,10 @@ check e (Tag i ity tag t, _pos) ty = do
 
 checkType typeFun e i s x tyA tyB t ty = do
   let e_x = Env.addContext e x (NF.var tyA)
-  tyB' <- check e_x tyB (NF.sort $ s - 1)
+  tyB' <- check e_x tyB (NF.sort s)
 
   let tyA_ty = Env.getType e tyA
-  () <- assertSubSort e tyA_ty (NF.sort $ s - 1)
+  () <- assertSubSort e tyA_ty (NF.sort s)
 
   let e_i = Env.addBinding e i (Env.Pi x tyA tyB') (NF.sort s)
 
