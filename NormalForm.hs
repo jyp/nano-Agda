@@ -71,7 +71,7 @@ subs' (App y f x n) i c@(Lam a nf) | i == f =
       nf_y = subs' nf a x'
       n'   = subs  n  y nf_y in
   subs' n' f c
-subs' (App y _f x n) i c@(Var f') =
+subs' (App y f x n) i c@(Var f') | i == f =
     App y f' (subsC x i c) (subs' n i c)
 subs' (App y f x n) i c =
     App y f (subsC x i c) (subs' n i c)
@@ -80,7 +80,7 @@ subs' (Proj x y z n) i c@(Pair x' y') | i == z =
   let n_x = subs' n   x x'
       n_y = subs' n_x y y' in
   subs' n_y i c
-subs' (Proj x y _z n) i c@(Var z') =
+subs' (Proj x y z n) i c@(Var z') | i == z =
     Proj x y z' (subs' n i c)
 subs' (Proj x y z n) i c =
     Proj x y z (subs' n i c)
