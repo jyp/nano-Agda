@@ -12,18 +12,18 @@ let ℤ/3ℤ =
   { '0, '1, '2 }
 in
 
-let funℤ/3ℤ : *2 =
+let funℤ/3ℤ : * =
   ( a : ℤ/3ℤ ) -> ℤ/3ℤ
 in
 
-let binℤ/3ℤ : *3 =
+let binℤ/3ℤ : * =
   ( a : ℤ/3ℤ ) -> funℤ/3ℤ
 in
 
-let boolℤ/3ℤ : *3 =
+let boolℤ/3ℤ : *2 =
   ( _ : ℤ/3ℤ ) -> * in
 
-let binboolℤ/3ℤ : *4 =
+let binboolℤ/3ℤ : *2 =
   ( _ : ℤ/3ℤ ) -> boolℤ/3ℤ
 in
 
@@ -35,7 +35,7 @@ let incr : funℤ/3ℤ = λ n .
   }
 in
 
-let funT : *3 =
+let funT : * =
   ( _ : funℤ/3ℤ ) -> funℤ/3ℤ
 in
 
@@ -47,7 +47,7 @@ let composeIncr : funT = λ f .
   in f'
 in
 
-let repeatT : *4 = ( _ : ℤ/3ℤ ) -> funT in
+let repeatT : * = ( _ : ℤ/3ℤ ) -> funT in
 
 let repeat : repeatT = λ n .
   let f' : funT = λ f .
@@ -77,30 +77,30 @@ let + : binℤ/3ℤ = λ n1 .
   in f2
 in
 
--- let == : binboolℤ/3ℤ = λ n1 .
---   let f2 : boolℤ/3ℤ = λ n2 .
---     case n1 {
---       '0 ->
---       case n1 {
---         '0 -> Unit
---   	   '1 -> Bot
--- 	   '2 -> Bot
---       }
---       '1 ->
---       case n1 {
---         '0 -> Bot
--- 	   '1 -> Unit
---   	   '2 -> Bot
---       }
---       '2 ->
---       case n1 {
---         '0 -> Bot
---   	   '1 -> Bot
---   	   '2 -> Unit
---       }
---     }
---   in f2
--- in
+let == : binboolℤ/3ℤ = λ n1 .
+  let f2 : boolℤ/3ℤ = λ n2 .
+    case n1 {
+      '0 ->
+      case n2 {
+        '0 -> Unit
+        '1 -> Bot
+        '2 -> Bot
+      }
+      '1 ->
+      case n2 {
+        '0 -> Bot
+        '1 -> Unit
+        '2 -> Bot
+      }
+      '2 ->
+      case n2 {
+        '0 -> Bot
+        '1 -> Bot
+        '2 -> Unit
+      }
+    }
+  in f2
+in
 
 let n : ℤ/3ℤ = '2 in
 let f = + n in

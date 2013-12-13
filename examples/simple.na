@@ -7,7 +7,7 @@ Simple =
 
 let fin = { 'bla } in
 
-let finFun : *2 = _:fin -> fin in
+let finFun : * = _:fin -> fin in
 
 let t : fin = 'bla in
 let g : finFun = λ x .

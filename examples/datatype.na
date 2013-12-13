@@ -1,0 +1,35 @@
+star :: *2
+star = *
+
+Datatype :: *
+Datatype =
+
+let Unit = { 'unit } in
+let bool = { 'true , 'false } in
+
+let MaybeT : *2 = ( _ : star ) -> * in
+
+let Maybe : MaybeT =
+  λ a .
+  let t : * = ( data : bool ) ×
+    case data {
+     'true -> a
+     'false -> Unit
+    }
+  in t
+in
+
+let noneT : *2 = (x : star ) -> let y = Maybe x in y
+in
+
+let none : noneT =
+  λ a .
+  let Ma = Maybe a in
+  let f : bool = 'false in
+  let u : Unit = 'unit in
+  let z : Ma = ( f , u ) in
+  z
+in
+
+let Mbool = Maybe bool in
+Mbool

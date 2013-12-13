@@ -14,7 +14,7 @@ let true : bool = 'true in
 
 let false : bool = 'false in
 
-let Tty : *3 = (_ : bool) -> * in
+let Tty : *2 = (_ : bool) -> * in
 
 let T : Tty = λ b .
   case b {
