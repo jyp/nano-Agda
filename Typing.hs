@@ -87,7 +87,8 @@ check e (App i f x t, _pos) ty = do
 -- let (x,y) = z in <t>
 check e (Proj x y z t, _pos) ty = do
   let zty = Env.getType e z
-  _ <- Env.normalizeSigma e zty
+  (a,tyA,tyB) <- Env.normalizeSigma e zty
+  let tyB' = fmap (a `swapWith` x) tyB
 
   case Env.getIntroOpt e z of
     Just (Env.IPair x' y') -> do
@@ -99,7 +100,9 @@ check e (Proj x y z t, _pos) ty = do
 
     _ -> do
       let e_z = Env.addElim e z (Env.EPair x y)
-      n <- check e_z t ty
+          e_zx = Env.addContext e_z x (NF.Con tyA)
+          e_zxy = Env.addContext e_zx y tyB'
+      n <- check e_zxy t ty
       return $
         NF.Proj x y z n
 
