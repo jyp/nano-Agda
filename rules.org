@@ -143,5 +143,18 @@ When we have both introduce and eliminate a variable, we can do stuff™ :
 
 [fn:1] Here, it's more complicated. We could put y = B[x:=x'] (this is only a name substitution, as x and x' are variables) but this doesn't allow anything more and force to know about terms inside the environment. Such, we don't add any more alias in this case.
 
+** Unification
+
+| Case x { ti -> ei)  | e      | ∀i add x = ti ; unify ei e             |
+| let (x,y) = z in e₁ | e      | add elimPair z=(x,y) ; unify e₁ e      |
+| let z = f x in e₁   | e      | add elimApp z = f x ; unify e₁ e       |
+| con                 | e'     | unify e' c                             |
+| Var x               | c      | fail                                   |
+| c                   | Var x  | fail                                   |
+| c                   | c'     | unify by structural recursion          |
+| Var x               | Var x' | x == x' ∧ unify (lookup x) (lookup x') |
+|                     |        |                                        |
+
+
 * Simple tests :
 - Define large (finite) structures like 32 bit integers.
