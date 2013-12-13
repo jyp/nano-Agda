@@ -252,22 +252,31 @@ normalizeLam env i = do
     NF.Lam x t -> return (x,t)
     _ -> throw $ Normalize i "Expected Lambda."
 
--- Verify that the definition of a variable has well formed tag intro and elim.
-checkTag :: Env -> Ident -> Bool
-checkTag e@(Env _ ei ee) i  =
-    let introDef = M.lookup (getN i) ei in
-    case introDef of
-      Just (Alias i') -> checkTag e i'
-      Just (ITag s) ->
-          let elimDefs = fromMaybe [] $ M.lookup (getN i) ee
-              x = find f elimDefs
-              f (ETag _) = True
-              f _ = False
-          in case x of
-               Just (ETag s') | s /= s' -> False
-               _ -> True
-      _ -> True
+-- | Eliminator introduction
 
+-- Case i
 elimTag :: Env -> Ident -> String -> Env
 elimTag env i s =
   addElim env i (ETag s)
+
+-- Proj (x,y) = z
+elimProj :: Env -> Ident -> Ident -> Ident -> NF -> NF -> Env
+elimProj e x y z tyA tyB =
+  case Env.getIntroOpt e z of
+    Just (Env.IPair x' y') -> do
+      let e_x = Env.addAlias e x' x
+      Env.addAlias e_x y' y
+    _ -> do
+      let e_z = Env.addElim e z (Env.EPair x y)
+          e_zx = Env.addContext e_z x tyA
+      Env.addContext e_zx y tyB
+
+-- App y = f x
+elimApp :: Env -> Ident -> Ident -> Ident -> NF -> Env
+elimApp e y f x ty =
+  case Env.getIntroOpt e f of
+    Just (Env.Lam fx ft) -> do
+      let ft_x = fmap (fx `swapWith` x) ft
+      Env.addBinding e y (Env.Def ft_x) ty
+    _ -> do
+      Env.addBinding e y (Env.App f x) ty

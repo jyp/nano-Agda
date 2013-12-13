@@ -71,16 +71,17 @@ check e (App i f x t, _pos) ty = do
   let xty = Env.getType e x
   () <- unify e xty (NF.Con tyA)
 
+  let e' = Env.elimApp e i f x tyB'
+
   case Env.getIntroOpt e f of
     Just (Env.Lam fx ft) -> do
       let ft_x = fmap (fx `swapWith` x) ft
-          e_i = Env.addBinding e i (Env.Def ft_x) tyB'
-      n <- check e_i t ty
+      n <- check e' t ty
       return $ NF.subs n i ft_x
+      -- At some point, we should be able to remove this subsitution.
 
     _ -> do
-      let e_i = Env.addBinding e i (Env.App f x) tyB'
-      n <- check e_i t ty
+      n <- check e' t ty
       return $ NF.App i f (NF.Var x) n
 
 
@@ -90,19 +91,17 @@ check e (Proj x y z t, _pos) ty = do
   (a,tyA,tyB) <- Env.normalizeSigma e zty
   let tyB' = fmap (a `swapWith` x) tyB
 
+  let e' = Env.elimProj e x y z (NF.Con tyA) tyB'
+
   case Env.getIntroOpt e z of
     Just (Env.IPair x' y') -> do
-      let e_x = Env.addAlias e x' x
-      let e_xy = Env.addAlias e_x y' y
-      n <- check e_xy t ty
+      n <- check e' t ty
       return $
         NF.subs' (NF.subs' n x' (NF.Var x)) y' (NF.Var y)
+      -- At some point, we should be able to remove this subsitution.
 
     _ -> do
-      let e_z = Env.addElim e z (Env.EPair x y)
-          e_zx = Env.addContext e_z x (NF.Con tyA)
-          e_zxy = Env.addContext e_zx y tyB'
-      n <- check e_zxy t ty
+      n <- check e' t ty
       return $
         NF.Proj x y z n
 
