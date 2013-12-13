@@ -13,7 +13,7 @@ import Data.List(find)
 import qualified Data.Map as M
 
 data Definition
-    = App Ident Ident      -- y = f x
+    = App Ident Con        -- y = f x
     | Lam Ident NF         -- f = λx.n
     | ITag String          -- x = 'tag
     | ETag String          -- x = 'tag
@@ -83,7 +83,7 @@ mapNameDef :: (Name -> Name) -> Definition -> Definition
 mapNameDef mapN def =
     let m = (>~ mapN) in
     case def of
-      App f x -> App (m f) (m x)
+      App f x -> App (m f) (fmap m x)
       Lam i t -> Lam (m i) (fmap m t)
       ITag x -> ITag x
       ETag x -> ETag x
@@ -179,7 +179,7 @@ toNF e i = do
     Sigma x tyA t -> retcon $ NF.Sigma x (NF.Var tyA) t
     Fin l -> retcon $ NF.Fin l
     Star s -> retcon $ NF.Star s
-    App f x -> return $ NF.App i f (NF.Var x) (NF.var i)
+    App f x -> return $ NF.App i f x (NF.var i)
     Alias x -> toNF e x
     Def t -> return t
     where retcon = return . NF.Con
@@ -272,11 +272,11 @@ elimProj e x y z tyA tyB =
       Env.addContext e_zx y tyB
 
 -- App y = f x
-elimApp :: Env -> Ident -> Ident -> Ident -> NF -> Env
+elimApp :: Env -> Ident -> Ident -> Con -> NF -> Env
 elimApp e y f x ty =
   case Env.getIntroOpt e f of
     Just (Env.Lam fx ft) -> do
-      let ft_x = fmap (fx `swapWith` x) ft
+      let ft_x = NF.subs' ft fx x
       Env.addBinding e y (Env.Def ft_x) ty
     _ -> do
       Env.addBinding e y (Env.App f x) ty

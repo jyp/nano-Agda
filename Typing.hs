@@ -71,7 +71,7 @@ check e (App i f x t, _pos) ty = do
   let xty = Env.getType e x
   () <- unify e xty (NF.Con tyA)
 
-  let e' = Env.elimApp e i f x tyB'
+  let e' = Env.elimApp e i f (NF.Var x) tyB'
 
   case Env.getIntroOpt e f of
     Just (Env.Lam fx ft) -> do
@@ -180,95 +180,111 @@ checkType typeFun e i s x tyA tyB t ty = do
 -- | Unification
 
 unify :: Env -> Type -> Type -> TypeError ()
+unify e t t' = unifyDir LeftDir e t t'
 
-unify e (NF.Con (NF.Var x)) (NF.Con (NF.Var y)) =
-    unifyId e x y
 
-unify e (NF.Con (NF.Var x)) y = do
+-- Dir gives the type of the "smallest" type.
+-- Allow to factorize unification while having subtyping.
+data Dir = LeftDir | RightDir
+reverseDir :: Dir -> Dir
+reverseDir LeftDir = RightDir
+reverseDir RightDir = LeftDir
+
+unifyDir :: Dir -> Env -> Type -> Type -> TypeError ()
+
+-- verify that x == x' (think about nested cases).
+unifyDir dir e (NF.Case x l) n' =
+  case Env.getIntroOpt e x of
+    Just (Env.ITag tag) ->
+        unifyDir dir e (Maybe.fromJust $ List.lookup tag l) n'
+
+    _ -> mapM_ checkbranch l
+    where
+      checkbranch (tag,n) =
+          let e' = Env.elimTag e x tag in
+          unifyDir dir e' n n'
+
+unifyDir dir e (NF.App y f x n) n' = do
+  let fty = Env.getType e f
+  (a, _tyA, tyB) <- Env.normalizePi e fty
+  let tyB' = NF.subs' tyB a x
+  let e' = Env.elimApp e y f x tyB'
+
+  unifyDir dir e' n n'
+
+unifyDir dir e (NF.Proj x y z n) n' = do
+  let zty = Env.getType e z
+  (a,tyA,tyB) <- Env.normalizeSigma e zty
+  let tyB' = fmap (a `swapWith` x) tyB
+
+  let e' = Env.elimProj e x y z (NF.Con tyA) tyB'
+
+  unifyDir dir e' n n'
+
+unifyDir dir e (NF.Con (NF.Var x)) (NF.Con (NF.Var y)) =
+    unifyId dir e x y
+
+unifyDir dir e (NF.Con (NF.Var x)) y = do
   dx <- Env.toNF e x
-  unify e dx y
+  unifyDir dir e dx y
 
-unify e x (NF.Con (NF.Var y)) = do
-  dy <- Env.toNF e y
-  unify e x dy
+unifyDir dir e (NF.Con c) (NF.Con c') =
+    unifyCon dir e c c'
 
-unify e (NF.Con c) (NF.Con c') =
-    unifyCon e c c'
-
-unify e n@(NF.Case x l) n'@(NF.Case x' l') = do
-  let fin = map fst l
-      fin' = map fst l'
-  (ls, ls') <-
-    if unifyFin fin fin' then
-        return (sortFst l, sortFst l')
-    else throw $ Unification n n'
-  mapM_ uniCase $ zip ls ls'
-      where sortFst = List.sortBy (\ a b -> compare (fst a) (fst b))
-            uniCase (ns,ns') =
-                unify e (snd ns) (fmap (x' `swapWith` x) $ snd ns')
-
-unify e (NF.App x f y n) (NF.App x' f' y' n') = do
-  () <- unifyCon e y y'
-  unify e n (fmap ((x' `swapWith` x) . (f' `swapWith` f)) n')
-  -- It should work fine, but I have a bad presentiment.
-
-unify e (NF.Proj x y z n) (NF.Proj x' y' z' n') = do
-  unify e n (fmap swap n')
-      where swap =
-                (x' `swapWith` x) .
-                (y' `swapWith` y) .
-                (z' `swapWith` z)
-
--- Catch all
-unify _e n n' = throw $ Unification n n'
+-- Reverse
+unifyDir dir e n@(NF.Con _) n' =
+    unifyDir (reverseDir dir) e n' n
 
 
 -- | For variables.
-unifyId :: Env -> Ident -> Ident -> TypeError ()
-unifyId e i i' | Env.areEqual e i i' = return ()
-unifyId e i i' = do
+unifyId :: Dir -> Env -> Ident -> Ident -> TypeError ()
+unifyId _ e i i' | Env.areEqual e i i' = return ()
+unifyId dir e i i' = do
   d <- Env.toNF e i
   d' <- Env.toNF e i'
-  unify e d d'
+  unifyDir dir e d d'
 
 -- | For Constructers
-unifyCon :: Env -> Con -> Con -> TypeError ()
+unifyCon :: Dir -> Env -> Con -> Con -> TypeError ()
 
-unifyCon e c c' =
+unifyCon dir e c c' =
   case (c,c') of
     (NF.Var x, _) -> do
         dx <- Env.toNF e x
-        unify e dx (NF.Con c')
+        unifyDir dir e dx (NF.Con c')
     (_, NF.Var x) -> do
         dx <- Env.toNF e x
-        unify e (NF.Con c) dx
+        unifyDir dir e (NF.Con c) dx
     (NF.Star s, NF.Star s') ->
-        assert $ s <= s'
+        assert $ compareDir s s'
     (NF.Fin l, NF.Fin l') ->
         assert $ unifyFin l l'
     (NF.Pair c1 c2, NF.Pair c1' c2') -> do
-        () <- unifyCon e c1 c1'
-        unifyCon e c2 c2'
+        () <- unifyCon dir e c1 c1'
+        unifyCon dir e c2 c2'
     (NF.Tag t, NF.Tag t') ->
         assert $ t == t'
     (NF.Lam x n, NF.Lam x' n') ->
-        unify e n (fmap (x' `swapWith` x) n')
+        unifyDir dir e n (fmap (x' `swapWith` x) n')
     (NF.Pi a tyA tyB, NF.Pi a' tyA' tyB') ->
-        unifyTypes e (a,tyA,tyB) (a',tyA',tyB')
-    (NF.Sigma a tyA tyB, NF.Pi a' tyA' tyB') ->
-        unifyTypes e (a,tyA,tyB) (a',tyA',tyB')
+        unifyTypes dir e (a,tyA,tyB) (a',tyA',tyB')
+    (NF.Sigma a tyA tyB, NF.Sigma a' tyA' tyB') ->
+        unifyTypes dir e (a,tyA,tyB) (a',tyA',tyB')
     (_,_) -> failUni
   where
     failUni :: TypeError ()
     failUni = throw $ Unification (NF.Con c) (NF.Con c')
     assert b = if b then return () else failUni
+    compareDir = case dir of
+                LeftDir -> (<=)
+                RightDir -> (>=)
 
 -- | Utilities for unification
 
-unifyTypes :: Env -> (Ident,Con,NF) -> (Ident,Con,NF) -> TypeError ()
-unifyTypes e (a,tyA,tyB) (a',tyA',tyB') = do
-  () <- unifyCon e tyA tyA'
-  unify e tyB (fmap (a' `swapWith` a) tyB')
+unifyTypes :: Dir -> Env -> (Ident,Con,NF) -> (Ident,Con,NF) -> TypeError ()
+unifyTypes dir e (a,tyA,tyB) (a',tyA',tyB') = do
+  () <- unifyCon dir e tyA tyA'
+  unifyDir dir e tyB (fmap (a' `swapWith` a) tyB')
 
 unifyFin :: [String] -> [String] -> Bool
 unifyFin l1 l2 =
