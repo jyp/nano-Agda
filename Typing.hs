@@ -71,10 +71,17 @@ check e (App i f x t, _pos) ty = do
   let xty = Env.getType e x
   () <- unify e xty (NF.Con tyA)
 
-  let e_i = Env.addBinding e i (Env.App f x) tyB'
+  case Env.getIntroOpt e f of
+    Just (Env.Lam fx ft) -> do
+      let ft_x = fmap (fx `swapWith` x) ft
+          e_i = Env.addBinding e i (Env.Def ft_x) tyB'
+      n <- check e_i t ty
+      return $ NF.subs n i ft_x
 
-  n <- check e_i t ty
-  return $ NF.App i f (NF.Var x) n
+    _ -> do
+      let e_i = Env.addBinding e i (Env.App f x) tyB'
+      n <- check e_i t ty
+      return $ NF.App i f (NF.Var x) n
 
 
 -- let (x,y) = z in <t>
