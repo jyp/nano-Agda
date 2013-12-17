@@ -40,6 +40,7 @@ executable nanoAgda
 
   build-depends: array
   build-depends: containers
+  build-depends: transformers
   build-depends: base==4.*
   build-depends: pretty==1.1.*
   build-depends: mtl >= 2.0 && < 2.2

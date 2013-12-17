@@ -6,8 +6,6 @@ import qualified Names as N
 
 import Text.PrettyPrint((<>),(<+>),text)
 
-import Data.List(sortBy,groupBy)
-import Data.Ord(comparing)
 import qualified Data.Map as Map
 
 -- | The abstract syntax tree.
@@ -171,15 +169,15 @@ groupSmt decs =
         f [ TypDec i ty , Def _ t ] = return (i,t,ty)
         f [ Def i t , TypDec _ ty ] = return (i,t,ty)
         f [ Def (Ident (_,i)) _ ] =
-            throw $
+            throwError $
             text "Definition of" <+> text i
               <+> text "lacks a type declaration."
         f [ TypDec (Ident (_,i)) _ ] =
-            throw $
+            throwError $
             text "Type declaration of" <+> text i
               <+> text "lacks a definition."
         f (h:_) =
-            throw $
+            throwError $
             text "Variable" <+> text (smtGetIdString h) <+>
             text "has multiple definitions or declarations."
         f [] = error "empty group int statements."

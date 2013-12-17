@@ -189,7 +189,7 @@ env@(Env _ e _) ! ident =
     case M.lookup (getN ident) e of
       Just (Alias x) -> env ! x
       Just d -> return d
-      Nothing -> throw $ Abstract ident
+      Nothing -> throwError $ Abstract ident
 
 infix 9 !
 
@@ -212,9 +212,9 @@ normalize e n =
         dx <- toNF e x
         normalize e dx
     NF.Con c -> return c
-    NF.App _ f _ _ -> throw $ Abstract f
-    NF.Case x _ -> throw $ Abstract x
-    NF.Proj _ _ z _ -> throw $ Abstract z
+    NF.App _ f _ _ -> throwError $ Abstract f
+    NF.Case x _ -> throwError $ Abstract x
+    NF.Proj _ _ z _ -> throwError $ Abstract z
     -- Todo : reduce when we can.
 
 normalizeSort :: Env -> NF -> TypeError Sort
@@ -222,35 +222,35 @@ normalizeSort env i = do
   con <- normalize env i
   case con of
     NF.Star s -> return s
-    _ -> throw $ Normalize i "Expected Sort."
+    _ -> throwError $ Normalize i "Expected Sort."
 
 normalizePi :: Env -> NF -> TypeError (Ident, Con, NF)
 normalizePi env i = do
   con <- normalize env i
   case con of
     NF.Pi x tyA tyB -> return (x,tyA,tyB)
-    _ -> throw $ Normalize i "Expected Pi."
+    _ -> throwError $ Normalize i "Expected Pi."
 
 normalizeSigma :: Env -> NF -> TypeError (Ident, Con, NF)
 normalizeSigma env i = do
   con <- normalize env i
   case con of
     NF.Sigma x tyA tyB -> return (x,tyA,tyB)
-    _ -> throw $ Normalize i "Expected Sigma."
+    _ -> throwError $ Normalize i "Expected Sigma."
 
 normalizeFin :: Env -> NF -> TypeError [String]
 normalizeFin env i = do
   con <- normalize env i
   case con of
     NF.Fin l -> return l
-    _ -> throw $ Normalize i "Expected Fin."
+    _ -> throwError $ Normalize i "Expected Fin."
 
 normalizeLam :: Env -> NF -> TypeError (Ident, NF)
 normalizeLam env i = do
   con <- normalize env i
   case con of
     NF.Lam x t -> return (x,t)
-    _ -> throw $ Normalize i "Expected Lambda."
+    _ -> throwError $ Normalize i "Expected Lambda."
 
 -- | Eliminator introduction
 

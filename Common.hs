@@ -1,19 +1,29 @@
-module Common where
+module Common (module Common, E.throwError, E.catchError) where
 
 import Data.List(partition)
 import PPrint
 import NormalForm(NF,Type)
 import Names
+import Data.Functor.Identity
 import Control.Monad.Error as E
+import Control.Monad.Writer hiding ((<>))
 
- -- General error
-
-type Err = ErrorT Doc IO
+-- | General errors
 
 instance Error Doc where
     strMsg s = text s
 
- -- Typing error
+type Err = ErrorT Doc (WriterT [Doc] IO)
+
+returnErr :: Pretty a => Int -> Err a -> IO ()
+returnErr n t = do
+  (res,trace) <- runWriterT $ runErrorT t
+  case res of
+    Left x -> print $ pretty (x $+$ selectLast n trace)
+    Right x -> print (pretty x)
+
+
+-- | Type errors
 
 data TypeInfo
     = Unification Type Type
@@ -27,13 +37,28 @@ data TypeInfo
 instance Error TypeInfo where
     strMsg s = UnknownError $ text s
 
-type TypeError = Either TypeInfo
+type TypeError a = ErrorT TypeInfo (Writer [Doc]) a
 
-throw :: MonadError e m => e -> m a
-throw = E.throwError
+runTypeError :: TypeError a -> (Either TypeInfo a, [Doc])
+runTypeError x = runWriter $ runErrorT x
 
-catch :: MonadError e m => m a -> (e -> m a) -> m a
-catch = E.catchError
+report :: Doc -> TypeError ()
+report x = tell [x]
+
+convert :: TypeError a -> Err a
+convert =
+    mapErrorT $ mapWriterT (f . runIdentity)
+        where f (x,trace) = return $ (lmap pretty x, trace)
+              lmap g (Left x) = Left $ g x
+              lmap _ (Right x) = Right x
+
+selectLast :: Int -> [Doc] -> Doc
+selectLast _ [] = empty
+selectLast x l =
+    text "While :" $$ (pretty $ take x l)
+
+
+-- | Type errors formating.
 
 introError :: Ident -> Doc
 introError i =
@@ -42,43 +67,35 @@ introError i =
 introError' :: Type -> Doc
 introError' t = pretty t
 
-convert :: TypeError a -> Err a
-convert (Right x) = return x
-convert (Left e) =
-    case e of
-      Unification x y ->
-          throw $
-          introError' x <&> introError' y $+$
-          text "Type error during the unification of"
-          <+> pretty x <+> text "and" <+> pretty y <> char '.'
-      SubSort x y ->
-          throw $
-          introError' x <&> introError' y  $+$
-          text "Type" <+> pretty x <+>
-          text "should be a subsort of" <+> pretty y <> char '.'
-      Check i ty s  ->
-          throw $
-          introError i <&> introError' ty $+$
-          text "Type error during the checking of "
-          <+> pretty i <+> text "with type" <+> pretty ty
-          <+> colon <+> text s
-      Normalize ty s  ->
-          throw $
-          pretty ty $+$
-          text "Type error during normalization of "
-          <+> pretty ty <+> colon <+> text s
-      Abstract i ->
-          throw $
-          introError i $+$
-          text "This term is abstract and can't be decomposed :"
-          <+> pretty i
-      IncompBindings i ty ty' ->
-          throw $
-          introError i $+$
-          text "Types" <+> pretty ty <+> text "and"
-          <+> pretty ty' <+> text "for variable"
-          <+> pretty i <+> text "are incompatibles."
-      UnknownError s -> throw s
+instance Pretty TypeInfo where
+  pretty e = case e of
+    Unification x y ->
+        introError' x <&> introError' y $+$
+        text "Type error during the unification of"
+        <+> pretty x <+> text "and" <+> pretty y <> char '.'
+    SubSort x y ->
+        introError' x <&> introError' y  $+$
+        text "Type" <+> pretty x <+>
+        text "should be a subsort of" <+> pretty y <> char '.'
+    Check i ty s  ->
+        introError i <&> introError' ty $+$
+        text "Type error during the checking of "
+        <+> pretty i <+> text "with type" <+> pretty ty
+        <+> colon <+> text s
+    Normalize ty s  ->
+        pretty ty $+$
+        text "Type error during normalization of "
+        <+> pretty ty <+> colon <+> text s
+    Abstract i ->
+        introError i $+$
+        text "This term is abstract and can't be decomposed :"
+        <+> pretty i
+    IncompBindings i ty ty' ->
+        introError i $+$
+        text "Types" <+> pretty ty <+> text "and"
+        <+> pretty ty' <+> text "for variable"
+        <+> pretty i <+> text "are incompatibles."
+    UnknownError s -> s
 
 
 -- A fold/map hybrid to pass along the environment.

@@ -11,6 +11,7 @@ import Typing
 import Env
 import System.Environment(getArgs)
 import Control.Monad.Error
+import Control.Monad.Writer(WriterT,runWriterT)
 
 parseFiles :: [String] -> Err [R.Smt]
 parseFiles l = do
@@ -22,9 +23,9 @@ checkFiles decs = do
   decsT <- convert $ checkDecs empty decs
   return decsT
 
-printExn :: Show a => ErrorT e IO a -> IO ()
+printExn :: Show a => Err a -> IO ()
 printExn e = do
-    e' <- runErrorT e
+    (e',_trace) <- runWriterT $ runErrorT e
     case e' of
       Left _ -> return ()
       Right x -> print x
@@ -39,9 +40,6 @@ main = do
   -- () <- printExn decsAST
 
   let decsTerms = decsAST >>= R.convertFile
-  () <- printExn (fmap pretty decsTerms)
+  () <- printExn $ fmap pretty decsTerms
 
-  results <- runErrorT $ decsTerms >>= checkFiles
-  case results of
-    Left x -> print (pretty x)
-    Right x -> print (pretty x)
+  returnErr 3 $ decsTerms >>= checkFiles

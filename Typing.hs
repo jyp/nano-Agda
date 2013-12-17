@@ -3,6 +3,7 @@ module Typing where
 
 import Common
 import Names
+import qualified PPrint as P
 import Terms
 import NormalForm(NF,Con,Type)
 import qualified NormalForm as NF
@@ -111,7 +112,7 @@ check e (Case x l, _pos) ty = do
   let xty = Env.getType e x
   xfin <- Env.normalizeFin e xty
   () <- if unifyFin xfin fin then return ()
-      else throw $ Check x xty "Case decomposition is not consistent with the type."
+      else throwError $ Check x xty "Case decomposition is not consistent with the type."
 
   case Env.getIntroOpt e x of
     Just (Env.ITag tag) ->
@@ -157,7 +158,7 @@ check e (Pair i ity x y t, _pos) ty = do
 check e (Tag i ity tag t, _pos) ty = do
   xfin <- Env.normalizeFin e (NF.var ity)
   () <- if elem tag xfin then return ()
-      else throw $ Check i (NF.var ity) "Tag not included in Fin."
+      else throwError $ Check i (NF.var ity) "Tag not included in Fin."
   let e_i = Env.addBinding e i (Env.ITag tag) (NF.var ity)
 
   n <- check e_i t ty
@@ -180,7 +181,10 @@ checkType typeFun e i s x tyA tyB t ty = do
 -- | Unification
 
 unify :: Env -> Type -> Type -> TypeError ()
-unify e t t' = unifyDir LeftDir e t t'
+unify e t t' = do
+  () <- report $ P.text "Unifying"
+        P.<+> P.pretty t P.<+> P.text "and" P.<+> P.pretty t' P.<> P.dot
+  unifyDir LeftDir e t t'
 
 
 -- Dir gives the type of the "smallest" type.
@@ -273,7 +277,7 @@ unifyCon dir e c c' =
     (_,_) -> failUni
   where
     failUni :: TypeError ()
-    failUni = throw $ Unification (NF.Con c) (NF.Con c')
+    failUni = throwError $ Unification (NF.Con c) (NF.Con c')
     assert b = if b then return () else failUni
     compareDir = case dir of
                 LeftDir -> (<=)
@@ -298,7 +302,7 @@ assertSort f e t t' = do
   s <- Env.normalizeSort e t
   s' <- Env.normalizeSort e t'
   if f s s' then return ()
-  else throw $ SubSort t t'
+  else throwError $ SubSort t t'
 
 assertSubSort :: Env -> Type -> Type -> TypeError ()
 assertSubSort = assertSort (<=)
