@@ -1,0 +1,50 @@
+Bool :: *
+Bool = let bool = { 'true , 'false } in bool
+
+id :: (A : *) -> (x : A) -> A
+id = \ A . \ x . x
+
+Eq :: Bool -> Bool -> *
+Eq = \ x . \ y . (P : Bool -> *) -> P x -> P y
+
+refl :: (x : Bool) -> Eq x x
+refl = \ x . \ P . \ y . y
+
+Bla :: *2
+Bla = *
+
+BlaFun :: *2
+BlaFun = let blaFun : *2 = (x : Bla) -> Bool in blaFun
+
+BoolBlaFun :: *2
+BoolBlaFun = let boolBlaFun : *2 = (b : Bool) -> BlaFun in boolBlaFun
+
+Ulf1 :: *2
+Ulf1 = let ulf1 : *2 = (g : BlaFun) -> BlaFun
+       in  ulf1
+
+Ulf :: *2
+Ulf = let ulf0 : *2 = (f : BlaFun) -> Ulf1
+      in  ulf0
+
+ulf :: Ulf
+ulf = let ulf0 : Ulf = \ f .
+          let ulf1 : Ulf1 = \ g .
+              let ulf2 : BlaFun = \ x .
+                  let y = f x in
+                  let h : BoolBlaFun = \ b .
+                      case b {
+                        'true  -> f
+                        'false -> g
+                      } in
+                  case y {
+                    'true  -> let z = id (Eq Bool y (h y x)) (refl Bool y)
+                              in  'true
+                    'false -> 'false
+                  }
+              in  ulf2
+          in  ulf1
+      in  ulf0
+
+
+
